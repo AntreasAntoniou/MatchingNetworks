@@ -113,11 +113,6 @@ class omniglot_one_shot_classification():
             self.y_train = self.y_train[indeces]
 
         self.mean = np.mean(self.x_train)
-
-        self.x_train = self.x_train - self.mean
-        self.x_test = self.x_test - self.mean
-        self.x_val = self.x_val - self.mean
-
         self.max = np.max(self.x_train)
         self.min = np.min(self.x_train)
 
