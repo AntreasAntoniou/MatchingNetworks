@@ -15,7 +15,7 @@ data = dataset.omniglot_one_shot_classification(batch_size=batch_size,
                                                 classes_per_set=classes_per_sample, samples_per_class=samples_per_class)
 x_support_set, y_support_set, x_target, y_target = data.get_next_train_batch()
 epochs = 200
-logs_path = "one_shot_outputs/"
+logs_path = "one_shot_outputs/"#/disk/scratch for cdtcluster
 experiment_name = "one_shot_learning_embedding_{}_{}".format(samples_per_class, classes_per_sample)
 sequence_size = classes_per_sample * samples_per_class
 support_set_images = tf.placeholder(tf.float32, [batch_size, sequence_size, 32, 32, channels], 'support_set_images')
@@ -49,7 +49,6 @@ save_statistics(experiment_name, ["epoch", "train_c_loss", "train_c_accuracy", "
 
 with tf.Session() as sess:
     sess.run(init)
-    writer = tf.summary.FileWriter(logs_path, graph=tf.get_default_graph())
     saver = tf.train.Saver()
 
     if load_from_GAN: #to initialize conv net from GAN encoder embeddings
@@ -92,6 +91,7 @@ with tf.Session() as sess:
     iter_done = 0
     disc_iter = 5
     gen_iter = 1
+    print("start")
     with tqdm.tqdm(total=2000) as pbar_e:
         for e in range(0, 2000):
             total_c_loss = 0.
@@ -104,7 +104,6 @@ with tf.Session() as sess:
                         feed_dict={keep_prob: 0.9, support_set_images: x_support_set,
                                    support_set_labels: y_support_set, target_image: x_target, target_label: y_target,
                                    training_phase: True})
-
                     iter_done = iter_done + 1
                     iter_out = "train_loss: {}, train_accuracy: {}".format(c_loss_value, acc)
                     pbar.set_description(iter_out)

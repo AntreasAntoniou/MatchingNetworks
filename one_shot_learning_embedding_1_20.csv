@@ -1,0 +1,3 @@
+epoch,train_c_loss,train_c_accuracy,val_loss,val_accuracy,test_c_loss,test_c_accuracy
+epoch,train_c_loss,train_c_accuracy,val_loss,val_accuracy,test_c_loss,test_c_accuracy
+epoch,train_c_loss,train_c_accuracy,val_loss,val_accuracy,test_c_loss,test_c_accuracy

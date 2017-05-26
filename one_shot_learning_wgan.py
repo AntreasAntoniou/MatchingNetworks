@@ -2,7 +2,6 @@ import tensorflow as tf
 import tensorflow.contrib.rnn as rnn
 from tensorflow.python.ops.nn_ops import max_pool
 
-
 class BidirectionalLSTM():
     def __init__(self, layer_sizes, batch_size):
         self.reuse = False
@@ -125,12 +124,14 @@ class MatchingNetwork:
         self.mean = tf.convert_to_tensor(mean, dtype=tf.float32)
         self.min = tf.convert_to_tensor(min, dtype=tf.float32)
         self.max = tf.convert_to_tensor(max, dtype=tf.float32)
+        self.k = None
 
     def rotate_data(self, image):
         # image = tf.image.random_flip_up_down(image)
         # image = tf.image.random_flip_left_right(image)
-        random_variable = tf.unstack(tf.random_uniform([1], minval=1, maxval=4, dtype=tf.int32, seed=None, name=None))
-        image = tf.image.rot90(image, k=random_variable[0])
+        if self.k is None:
+            self.k = tf.unstack(tf.random_uniform([1], minval=1, maxval=4, dtype=tf.int32, seed=None, name=None))
+        image = tf.image.rot90(image, k=self.k[0])
         return image
 
     def rotate_batch(self, batch_images):
@@ -140,7 +141,8 @@ class MatchingNetwork:
             batch_images_unpacked = tf.unstack(batch_images)
             new_images = []
             for image in batch_images_unpacked:
-                new_images.append(self.rotate_data(image))
+                rotated_batch = self.rotate_data(image)
+                new_images.append(rotated_batch)
             new_images = tf.stack(new_images)
             new_images = tf.reshape(new_images, (batch_size, x, y, c))
             return new_images
@@ -180,11 +182,13 @@ class MatchingNetwork:
             # tf.add_to_collection('y_outputs', y_output) # to be used for debugging
             # tf.add_to_collection('exp_sim', exponentiated_similarities)
             # tf.add_to_collection('sim', similarities_test)
-            # tf.add_to_collection('support-set', support_set_y)
+            #tf.add_to_collection('support-set', support_set_y)
+            #tf.add_to_collection('k', self.k)
             tf.add_to_collection('accuracy', accuracy)
 
         return {
             self.classify: tf.add_n(tf.get_collection('crossentropy_losses'), name='total_classification_loss'),
+            #self.g: tf.add_n(tf.get_collection('k'), name='current_k'),
             # self.lstm: {"y": tf.add_n(tf.get_collection('y_outputs'), name='y_outputs'), #used for debugging
             #             "sim_1": tf.add_n(tf.get_collection('exp_sim'), name='exp_sim'),
             #             "sim_2": tf.add_n(tf.get_collection('sim'), name='sim'),
