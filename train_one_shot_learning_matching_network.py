@@ -6,14 +6,14 @@ import tqdm
 from storage import *
 
 tf.reset_default_graph()
-batch_size = 100
-fce = True
-classes_per_sample = 20
+batch_size = 50
+fce = False
+classes_per_sample = 5
 samples_per_class = 1
 channels = 1
 data = dataset.omniglot_one_shot_classification(batch_size=batch_size,
                                                 classes_per_set=classes_per_sample, samples_per_class=samples_per_class)
-x_support_set, y_support_set, x_target, y_target = data.get_next_train_batch()
+x_support_set, y_support_set, x_target, y_target = data.get_train_batch()
 epochs = 200
 logs_path = "one_shot_outputs/"#/disk/scratch for cdtcluster
 experiment_name = "one_shot_learning_embedding_{}_{}".format(samples_per_class, classes_per_sample)
@@ -98,7 +98,7 @@ with tf.Session() as sess:
             total_accuracy = 0.
             with tqdm.tqdm(total=total_train_batches) as pbar:
                 for i in range(total_train_batches):
-                    x_support_set, y_support_set, x_target, y_target = data.get_next_train_batch()
+                    x_support_set, y_support_set, x_target, y_target = data.get_train_batch()
                     _, c_loss_value, acc = sess.run(
                         [c_error_opt_op, losses[dcgan.classify], losses[dcgan.dn]],
                         feed_dict={keep_prob: 0.9, support_set_images: x_support_set,
@@ -120,7 +120,7 @@ with tf.Session() as sess:
             total_val_accuracy = 0.
             with tqdm.tqdm(total=total_val_batches) as pbar:
                 for i in range(total_val_batches):
-                    x_support_set, y_support_set, x_target, y_target = data.get_next_val_batch()
+                    x_support_set, y_support_set, x_target, y_target = data.get_val_batch()
                     c_loss_value, acc = sess.run(
                         [losses[dcgan.classify], losses[dcgan.dn]],
                         feed_dict={keep_prob: 0.9, support_set_images: x_support_set,
@@ -141,7 +141,7 @@ with tf.Session() as sess:
             total_test_accuracy = 0.
             with tqdm.tqdm(total=total_test_batches) as pbar:
                 for i in range(total_test_batches):
-                    x_support_set, y_support_set, x_target, y_target = data.get_next_test_batch()
+                    x_support_set, y_support_set, x_target, y_target = data.get_test_batch()
                     c_loss_value, acc = sess.run(
                         [losses[dcgan.classify], losses[dcgan.dn]],
                         feed_dict={keep_prob: 0.9, support_set_images: x_support_set,
