@@ -24,11 +24,6 @@ target_image = tf.placeholder(tf.float32, [batch_size, 32, 32, channels], 'targe
 target_label = tf.placeholder(tf.int32, [batch_size], 'target_label')
 z_inputs = tf.placeholder(tf.float32, [batch_size, 100], 'inputs')
 
-train_results_gan_classifier = dict({"loss":[], "total_accuracy": []})
-validation_results_gan_classifier = dict({"loss":[], "total_accuracy": []})
-train_results_baseline_classifier = dict({"loss":[], "total_accuracy": []})
-validation_results_baseline_classifier = dict({"loss":[], "total_accuracy": []})
-
 training_phase = tf.placeholder(tf.bool, name='training-flag')
 keep_prob = tf.placeholder(tf.float32, name='dropout-prob')
 
@@ -88,9 +83,6 @@ with tf.Session() as sess:
         if continue_from_epoch != -1:
             saver.restore(sess, "saved_models/{}_{}.ckpt".format(experiment_name, continue_from_epoch))
 
-    iter_done = 0
-    disc_iter = 5
-    gen_iter = 1
     print("start")
     with tqdm.tqdm(total=2000) as pbar_e:
         for e in range(0, 2000):
@@ -104,7 +96,7 @@ with tf.Session() as sess:
                         feed_dict={keep_prob: 0.9, support_set_images: x_support_set,
                                    support_set_labels: y_support_set, target_image: x_target, target_label: y_target,
                                    training_phase: True})
-                    iter_done = iter_done + 1
+
                     iter_out = "train_loss: {}, train_accuracy: {}".format(c_loss_value, acc)
                     pbar.set_description(iter_out)
                     pbar.update(1)
@@ -127,7 +119,6 @@ with tf.Session() as sess:
                                    support_set_labels: y_support_set, target_image: x_target, target_label: y_target,
                                    training_phase: False})
 
-                    iter_done = iter_done + 1
                     iter_out = "val_loss: {}, val_accuracy: {}".format(c_loss_value, acc)
                     pbar.set_description(iter_out)
                     pbar.update(1)
@@ -148,7 +139,6 @@ with tf.Session() as sess:
                                    support_set_labels: y_support_set, target_image: x_target, target_label: y_target,
                                    training_phase: False})
 
-                    iter_done = iter_done + 1
                     iter_out = "test_loss: {}, test_accuracy: {}".format(c_loss_value, acc)
                     pbar.set_description(iter_out)
                     pbar.update(1)
