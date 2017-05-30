@@ -247,6 +247,7 @@ class omniglot_one_shot_classification():
 
         if self.indexes[dataset_label] + self.batch_size > self.datasets_cache[dataset_label][0].shape[0]:
             self.datasets_cache[dataset_label] = self.get_data(self.datasets[dataset_label])
+            self.indexes[dataset_label] = 0
             return self.get_batch(dataset_label)
         else:
             [temp_support_set_images, temp_support_set_labels,
