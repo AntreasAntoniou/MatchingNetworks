@@ -83,24 +83,31 @@ class Classifier:
 
             with tf.variable_scope('conv_layers'):
                 with tf.variable_scope('g_conv1'):
-                    g_conv1_encoder = tf.layers.conv2d(conditional_input, 64, [3, 3], strides=(2, 2), padding='SAME')
+                    g_conv1_encoder = tf.layers.conv2d(conditional_input, 64, [3, 3], strides=(1, 1), padding='SAME')
                     g_conv1_encoder = leaky_relu(g_conv1_encoder, name='outputs')
                     g_conv1_encoder = tf.contrib.layers.batch_norm(g_conv1_encoder, is_training=training)
+                    g_conv1_encoder = max_pool(g_conv1_encoder, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
+                                               padding='SAME')
                 with tf.variable_scope('g_conv2'):
-                    g_conv2_encoder = tf.layers.conv2d(g_conv1_encoder, 64, [3, 3], strides=(2, 2), padding='SAME')
+                    g_conv2_encoder = tf.layers.conv2d(g_conv1_encoder, 64, [3, 3], strides=(1, 1), padding='SAME')
                     g_conv2_encoder = leaky_relu(g_conv2_encoder, name='outputs')
                     g_conv2_encoder = tf.contrib.layers.batch_norm(g_conv2_encoder, is_training=training)
+                    g_conv2_encoder = max_pool(g_conv2_encoder, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
+                                               padding='SAME')
                 with tf.variable_scope('g_conv3'):
-                    g_conv3_encoder = tf.layers.conv2d(g_conv2_encoder, 64, [3, 3], strides=(2, 2), padding='SAME')
+                    g_conv3_encoder = tf.layers.conv2d(g_conv2_encoder, 64, [3, 3], strides=(1, 1), padding='SAME')
                     g_conv3_encoder = leaky_relu(g_conv3_encoder, name='outputs')
                     g_conv3_encoder = tf.contrib.layers.batch_norm(g_conv3_encoder, is_training=training)
+                    g_conv3_encoder = max_pool(g_conv3_encoder, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
+                                               padding='SAME')
                 with tf.variable_scope('g_conv4'):
-                    g_conv4_encoder = tf.layers.conv2d(g_conv3_encoder, 64, [3, 3], strides=(2, 2), padding='SAME')
+                    g_conv4_encoder = tf.layers.conv2d(g_conv3_encoder, 64, [3, 3], strides=(1, 1), padding='SAME')
                     g_conv4_encoder = leaky_relu(g_conv4_encoder, name='outputs')
                     g_conv4_encoder = tf.contrib.layers.batch_norm(g_conv4_encoder, is_training=training)
                     g_conv4_encoder = max_pool(g_conv4_encoder, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
             g_conv_encoder = g_conv4_encoder
             g_conv_encoder = tf.contrib.layers.flatten(g_conv_encoder)
+            print(g_conv_encoder.shape)
 
         self.reuse = True
         self.variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='g')
@@ -112,7 +119,8 @@ class MatchingNetwork:
         self.batch_size = batch_size
         self.fce = fce
         self.g = Classifier(self.batch_size, num_channels=num_channels)
-        self.lstm = BidirectionalLSTM(layer_sizes=[32], batch_size=self.batch_size)
+        if fce:
+            self.lstm = BidirectionalLSTM(layer_sizes=[32], batch_size=self.batch_size)
         self.dn = DistanceNetwork(self.batch_size, num_channels=num_channels)
         self.classify = AttentionalClassify()
         self.support_set_images = support_set_images
@@ -206,8 +214,12 @@ class MatchingNetwork:
         c_opt = tf.train.AdamOptimizer(beta1=beta1, learning_rate=learning_rate)
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
+            if self.fce:
+                train_variables = self.lstm.variables + self.g.variables
+            else:
+                train_variables = self.g.variables
             c_error_opt_op = c_opt.minimize(losses[self.classify],
-                                            var_list=self.lstm.variables + self.g.variables + self.dn.variables + self.classify.variables)
+                                            var_list=train_variables)
 
         return c_error_opt_op
 
