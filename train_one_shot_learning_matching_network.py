@@ -32,17 +32,17 @@ validation_results_baseline_classifier = dict({"loss":[], "total_accuracy": []})
 training_phase = tf.placeholder(tf.bool, name='training-flag')
 keep_prob = tf.placeholder(tf.float32, name='dropout-prob')
 
-dcgan = MatchingNetwork(batch_size=batch_size, support_set_images=support_set_images, support_set_labels=support_set_labels,
+one_shot_omniglot = MatchingNetwork(batch_size=batch_size, support_set_images=support_set_images, support_set_labels=support_set_labels,
               target_image=target_image, target_label=target_label, keep_prob=keep_prob, mean=data.mean, min=data.min,
               max=data.max, num_channels=channels, is_training=training_phase, fce=fce)
 
-summary, losses, c_error_opt_op = dcgan.init_train()
+summary, losses, c_error_opt_op = one_shot_omniglot.init_train()
 
 load_from_GAN = False
 load_from_classifier = False
 total_train_batches = 150
 total_val_batches = 50
-total_test_batches = 100
+total_test_batches = 50
 
 init = tf.global_variables_initializer()
 save_statistics(experiment_name, ["epoch", "train_c_loss", "train_c_accuracy", "val_loss", "val_accuracy", "test_c_loss", "test_c_accuracy"])
@@ -100,7 +100,7 @@ with tf.Session() as sess:
                 for i in range(total_train_batches):
                     x_support_set, y_support_set, x_target, y_target = data.get_train_batch()
                     _, c_loss_value, acc = sess.run(
-                        [c_error_opt_op, losses[dcgan.classify], losses[dcgan.dn]],
+                        [c_error_opt_op, losses[one_shot_omniglot.classify], losses[one_shot_omniglot.dn]],
                         feed_dict={keep_prob: 0.9, support_set_images: x_support_set,
                                    support_set_labels: y_support_set, target_image: x_target, target_label: y_target,
                                    training_phase: True})
@@ -122,7 +122,7 @@ with tf.Session() as sess:
                 for i in range(total_val_batches):
                     x_support_set, y_support_set, x_target, y_target = data.get_val_batch()
                     c_loss_value, acc = sess.run(
-                        [losses[dcgan.classify], losses[dcgan.dn]],
+                        [losses[one_shot_omniglot.classify], losses[one_shot_omniglot.dn]],
                         feed_dict={keep_prob: 0.9, support_set_images: x_support_set,
                                    support_set_labels: y_support_set, target_image: x_target, target_label: y_target,
                                    training_phase: False})
@@ -143,7 +143,7 @@ with tf.Session() as sess:
                 for i in range(total_test_batches):
                     x_support_set, y_support_set, x_target, y_target = data.get_test_batch()
                     c_loss_value, acc = sess.run(
-                        [losses[dcgan.classify], losses[dcgan.dn]],
+                        [losses[one_shot_omniglot.classify], losses[one_shot_omniglot.dn]],
                         feed_dict={keep_prob: 0.9, support_set_images: x_support_set,
                                    support_set_labels: y_support_set, target_image: x_target, target_label: y_target,
                                    training_phase: False})

@@ -1,26 +1,40 @@
 import numpy as np
 import omniglot_images
-np.random.seed(230691)
+np.random.seed(2391)
 class omniglot_dataset():
     def __init__(self, batch_size, shuffle=True, validation_ratio=0.1, single_channel=False):
         self.x_train, self.y_train, self.x_test, self.y_test = omniglot_images.load_data(single_channel=single_channel)
         self.x, self.y = np.concatenate((self.x_train, self.x_test)), np.concatenate((self.y_train, self.y_test+np.max(self.y_train)+1))
+
         self.x, self.y = self.get_map_by_label(self.x, self.y)
-        self.x_train, self.y_train, self.x_val, self.y_val, self.x_test, self.y_test = self.x[:, :15], self.y[:, :15], \
-                                                                                       self.x[:, 15:17], self.y[:, 15:17], \
-                                                                                       self.x[:, 17:], self.y[:, 17:]
+        #print(self.x.shape)
+        #self.x, self.y = self.shuffle(self.x, self.y)
+        indices = np.arange(self.x.shape[1])
+        np.random.shuffle(indices)
+        self.x = self.x[:, indices]
+        self.y = self.y[:, indices]
+        self.x_train, self.y_train, self.x_val, self.y_val, self.x_test, self.y_test = self.x[:, :18], self.y[:, :18], \
+                                                                                       self.x[:, 10:17], self.y[:, 10:17], \
+                                                                                       self.x[:, 18:], self.y[:, 18:]
+        print(np.max(self.y_train))
+        print(np.min(self.y_train))
         self.x_train, self.y_train = self.break_classes(self.x_train, self.y_train)
         self.x_val, self.y_val = self.break_classes(self.x_val, self.y_val)
         self.x_test, self.y_test = self.break_classes(self.x_test, self.y_test)
-
+        print(self.x_train.shape)
+        print(np.mean(self.y_train))
+        print(self.x_val.shape)
+        print(np.mean(self.y_val))
+        print(self.x_test.shape)
+        print(np.mean(self.y_test))
         self.mean = np.mean(self.x_train)
         self.std = np.std(self.x_train)
         self.max = np.max(self.x_train)
         self.min = np.min(self.x_train)
 
-        self.x_train = (self.x_train - self.mean)/(self.max - self.min)
-        self.x_val = (self.x_val - self.mean) / (self.max - self.min)
-        self.x_test = (self.x_test - self.mean)/(self.max - self.min)
+        self.x_train = (self.x_train - self.mean)#/(self.max - self.min)
+        self.x_val = (self.x_val - self.mean)# / (self.max - self.min)
+        self.x_test = (self.x_test - self.mean)#/(self.max - self.min)
 
         self.batch_size = batch_size
         self.n_classes = self.x.shape[0]
@@ -29,8 +43,8 @@ class omniglot_dataset():
         self.test_index = 0
 
     def shuffle(self, x, y):
-
-        indices = np.arange()
+        print("shuffle", x.shape)
+        indices = np.arange(x.shape[0])
         np.random.shuffle(indices)
         x = x[indices]
         y = y[indices]
@@ -59,8 +73,14 @@ class omniglot_dataset():
         return x_pack, y_pack
 
     def break_classes(self, x, y):
-        x, y = np.reshape(x, newshape=(x.shape[0] * x.shape[1], x.shape[2], x.shape[3], x.shape[4])), \
-                         np.reshape(y, newshape=(y.shape[0] * y.shape[1],))
+        temp_x = []
+        temp_y = []
+        for i in range(x.shape[0]):
+            for j in range(x.shape[1]):
+                temp_x.append(x[i, j])
+                temp_y.append(y[i, j])
+        x = np.array(temp_x)
+        y = np.array(temp_y)
         return x, y
 
     def get_next_train_batch(self):
