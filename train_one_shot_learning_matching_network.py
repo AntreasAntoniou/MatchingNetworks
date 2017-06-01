@@ -8,7 +8,7 @@ from storage import *
 tf.reset_default_graph()
 batch_size = 50
 fce = False
-classes_per_sample = 5
+classes_per_sample = 20
 samples_per_class = 1
 channels = 1
 data = dataset.omniglot_one_shot_classification(batch_size=batch_size,
@@ -28,16 +28,15 @@ training_phase = tf.placeholder(tf.bool, name='training-flag')
 keep_prob = tf.placeholder(tf.float32, name='dropout-prob')
 
 one_shot_omniglot = MatchingNetwork(batch_size=batch_size, support_set_images=support_set_images, support_set_labels=support_set_labels,
-              target_image=target_image, target_label=target_label, keep_prob=keep_prob, mean=data.mean, min=data.min,
-              max=data.max, num_channels=channels, is_training=training_phase, fce=fce)
+              target_image=target_image, target_label=target_label, keep_prob=keep_prob, num_channels=channels, is_training=training_phase, fce=fce)
 
 summary, losses, c_error_opt_op = one_shot_omniglot.init_train()
 
 load_from_GAN = False
 load_from_classifier = False
-total_train_batches = 150
-total_val_batches = 50
-total_test_batches = 50
+total_train_batches = 500
+total_val_batches = 100
+total_test_batches = 100
 
 init = tf.global_variables_initializer()
 save_statistics(experiment_name, ["epoch", "train_c_loss", "train_c_accuracy", "val_loss", "val_accuracy", "test_c_loss", "test_c_accuracy"])
@@ -115,7 +114,7 @@ with tf.Session() as sess:
                     x_support_set, y_support_set, x_target, y_target = data.get_val_batch()
                     c_loss_value, acc = sess.run(
                         [losses[one_shot_omniglot.classify], losses[one_shot_omniglot.dn]],
-                        feed_dict={keep_prob: 0.9, support_set_images: x_support_set,
+                        feed_dict={keep_prob: 1.0, support_set_images: x_support_set,
                                    support_set_labels: y_support_set, target_image: x_target, target_label: y_target,
                                    training_phase: False})
 
@@ -135,7 +134,7 @@ with tf.Session() as sess:
                     x_support_set, y_support_set, x_target, y_target = data.get_test_batch()
                     c_loss_value, acc = sess.run(
                         [losses[one_shot_omniglot.classify], losses[one_shot_omniglot.dn]],
-                        feed_dict={keep_prob: 0.9, support_set_images: x_support_set,
+                        feed_dict={keep_prob: 1.0, support_set_images: x_support_set,
                                    support_set_labels: y_support_set, target_image: x_target, target_label: y_target,
                                    training_phase: False})
 

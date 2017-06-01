@@ -73,7 +73,7 @@ class Classifier:
         self.reuse = False
         self.batch_size = batch_size
         self.num_channels = num_channels
-    def __call__(self, conditional_input, training=False):
+    def __call__(self, conditional_input, training=False, keep_prob=1.0):
         def leaky_relu(x, leak=0.2, name=''):
             return tf.maximum(x, x * leak, name=name)
 
@@ -83,28 +83,32 @@ class Classifier:
 
             with tf.variable_scope('conv_layers'):
                 with tf.variable_scope('g_conv1'):
-                    g_conv1_encoder = tf.layers.conv2d(conditional_input, 64, [3, 3], strides=(1, 1), padding='SAME')
+                    g_conv1_encoder = tf.layers.conv2d(conditional_input, 64, [3, 3], strides=(1, 1), padding='VALID')
                     g_conv1_encoder = leaky_relu(g_conv1_encoder, name='outputs')
                     g_conv1_encoder = tf.contrib.layers.batch_norm(g_conv1_encoder, is_training=training)
                     g_conv1_encoder = max_pool(g_conv1_encoder, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
                                                padding='SAME')
+                    g_conv1_encoder = tf.nn.dropout(g_conv1_encoder, keep_prob=keep_prob)
                 with tf.variable_scope('g_conv2'):
-                    g_conv2_encoder = tf.layers.conv2d(g_conv1_encoder, 64, [3, 3], strides=(1, 1), padding='SAME')
+                    g_conv2_encoder = tf.layers.conv2d(g_conv1_encoder, 64, [3, 3], strides=(1, 1), padding='VALID')
                     g_conv2_encoder = leaky_relu(g_conv2_encoder, name='outputs')
                     g_conv2_encoder = tf.contrib.layers.batch_norm(g_conv2_encoder, is_training=training)
                     g_conv2_encoder = max_pool(g_conv2_encoder, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
                                                padding='SAME')
+                    g_conv2_encoder = tf.nn.dropout(g_conv2_encoder, keep_prob=keep_prob)
                 with tf.variable_scope('g_conv3'):
-                    g_conv3_encoder = tf.layers.conv2d(g_conv2_encoder, 64, [3, 3], strides=(1, 1), padding='SAME')
+                    g_conv3_encoder = tf.layers.conv2d(g_conv2_encoder, 64, [3, 3], strides=(1, 1), padding='VALID')
                     g_conv3_encoder = leaky_relu(g_conv3_encoder, name='outputs')
                     g_conv3_encoder = tf.contrib.layers.batch_norm(g_conv3_encoder, is_training=training)
                     g_conv3_encoder = max_pool(g_conv3_encoder, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
                                                padding='SAME')
+                    g_conv3_encoder = tf.nn.dropout(g_conv3_encoder, keep_prob=keep_prob)
                 with tf.variable_scope('g_conv4'):
-                    g_conv4_encoder = tf.layers.conv2d(g_conv3_encoder, 64, [3, 3], strides=(1, 1), padding='SAME')
+                    g_conv4_encoder = tf.layers.conv2d(g_conv3_encoder, 64, [3, 3], strides=(1, 1), padding='VALID')
                     g_conv4_encoder = leaky_relu(g_conv4_encoder, name='outputs')
                     g_conv4_encoder = tf.contrib.layers.batch_norm(g_conv4_encoder, is_training=training)
                     g_conv4_encoder = max_pool(g_conv4_encoder, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
+                    g_conv4_encoder = tf.nn.dropout(g_conv4_encoder, keep_prob=keep_prob)
             g_conv_encoder = g_conv4_encoder
             g_conv_encoder = tf.contrib.layers.flatten(g_conv_encoder)
             print(g_conv_encoder.shape)
@@ -113,7 +117,7 @@ class Classifier:
         self.variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='g')
         return g_conv_encoder
 class MatchingNetwork:
-    def __init__(self, support_set_images, support_set_labels, target_image, target_label, keep_prob, mean, min, max,
+    def __init__(self, support_set_images, support_set_labels, target_image, target_label, keep_prob,
                  batch_size=100, num_channels=1, is_training=True, fce=False):
 
         self.batch_size = batch_size
@@ -129,9 +133,6 @@ class MatchingNetwork:
         self.target_label = target_label
         self.keep_prob = keep_prob
         self.is_training = is_training
-        self.mean = tf.convert_to_tensor(mean, dtype=tf.float32)
-        self.min = tf.convert_to_tensor(min, dtype=tf.float32)
-        self.max = tf.convert_to_tensor(max, dtype=tf.float32)
         self.k = None
 
     def rotate_data(self, image):
@@ -170,11 +171,11 @@ class MatchingNetwork:
             encoded_images = []
             for image in tf.unstack(self.support_set_images, axis=1):
                 image = self.data_augment_batch(image)
-                gen_encode = self.g(conditional_input=image, training=self.is_training)
+                gen_encode = self.g(conditional_input=image, training=self.is_training, keep_prob=self.keep_prob)
                 gen_encode = tf.contrib.layers.flatten(gen_encode)
                 encoded_images.append(gen_encode)
             target_image = self.data_augment_batch(self.target_image)
-            gen_encode = self.g(conditional_input=target_image, training=self.is_training)
+            gen_encode = self.g(conditional_input=target_image, training=self.is_training, keep_prob=self.keep_prob)
             gen_encode = tf.contrib.layers.flatten(gen_encode)
             encoded_images.append(gen_encode)
             if self.fce:
@@ -204,7 +205,7 @@ class MatchingNetwork:
             self.dn: tf.add_n(tf.get_collection('accuracy'), name='accuracy')
         }
 
-    def train(self, losses, learning_rate=1e-3, beta1=0.9):
+    def train(self, losses, learning_rate=1e-4, beta1=0.5):
         """
         Args:
             losses dict.
