@@ -24,20 +24,18 @@ class BidirectionalLSTM():
         return outputs, output_state_fw, output_state_bw
 
 class DistanceNetwork():
-    def __init__(self, batch_size, num_channels=1):
+    def __init__(self):
         self.reuse = False
     def __call__(self, support_set, input_image, name, training=False):
         with tf.name_scope('distance-module' + name), tf.variable_scope('distance-module', reuse=self.reuse):
-
             normalize_image = tf.sqrt(tf.reduce_sum(tf.square(input_image), axis=1))
             support_set = tf.unstack(support_set, axis=0)
             similarities = []
 
             for item in support_set:
-
                 normalize_item = tf.sqrt(tf.reduce_sum(tf.square(item), axis=1))
                 cos_similarity = tf.reduce_sum(tf.multiply(input_image, item), axis=1)
-                cos_similarity = cos_similarity / (normalize_item*normalize_image)
+                cos_similarity = cos_similarity / (normalize_item * normalize_image)
                 similarities.append(cos_similarity)
 
         self.variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='distance-module')
@@ -49,24 +47,14 @@ class AttentionalClassify():
         self.reuse = False
     def __call__(self, similarities, support_set_y, name, training=False):
         with tf.name_scope('attentional-classification' + name), tf.variable_scope('attentional-classification', reuse=self.reuse):
-            support_set_y = tf.unstack(support_set_y, axis=1)
-            similarities = tf.unstack(similarities, axis=0)
-            y_output = []
-            exponentiated_similarities = []
-
-            for sim in similarities:
-                exponentiated_similarities.append(tf.exp(sim))
-            sum_similarities = tf.reduce_sum(tf.stack(exponentiated_similarities), axis=0)
-
-            for i, y in enumerate(support_set_y):
-                kernel_similarity = exponentiated_similarities[i] / sum_similarities
-                kernel_similarity = [kernel_similarity for i in range(int(y.get_shape()[1]))]
-                kernel_similarity = tf.stack(kernel_similarity, axis=1)
-                y_output.append(tf.multiply(y, kernel_similarity))
-            preds = tf.reduce_sum(y_output, axis=0)
+            #support_set_y = tf.stack(support_set_y, axis=1)
+            similarities = tf.stack(similarities, axis=1)
+            concat_similarities = similarities
+            weighting = tf.nn.softmax(concat_similarities)
+            preds = tf.squeeze(tf.matmul(tf.expand_dims(weighting, 1), support_set_y))
 
         self.variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='attentional-classification')
-        return preds, y_output, exponentiated_similarities, similarities, support_set_y
+        return preds, weighting, concat_similarities, similarities, support_set_y
 
 class Classifier:
     def __init__(self, batch_size, num_channels=1):
@@ -125,7 +113,7 @@ class MatchingNetwork:
         self.g = Classifier(self.batch_size, num_channels=num_channels)
         if fce:
             self.lstm = BidirectionalLSTM(layer_sizes=[32], batch_size=self.batch_size)
-        self.dn = DistanceNetwork(self.batch_size, num_channels=num_channels)
+        self.dn = DistanceNetwork()
         self.classify = AttentionalClassify()
         self.support_set_images = support_set_images
         self.support_set_labels = support_set_labels
@@ -188,20 +176,20 @@ class MatchingNetwork:
             crossentropy_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.target_label, logits=preds))
 
             tf.add_to_collection('crossentropy_losses', crossentropy_loss)
-            # tf.add_to_collection('y_outputs', y_output) # to be used for debugging
-            # tf.add_to_collection('exp_sim', exponentiated_similarities)
-            # tf.add_to_collection('sim', similarities_test)
-            #tf.add_to_collection('support-set', support_set_y)
+            tf.add_to_collection('y_outputs', y_output) # to be used for debugging
+            tf.add_to_collection('exp_sim', exponentiated_similarities)
+            tf.add_to_collection('sim', similarities)
+            tf.add_to_collection('support-set', support_set_y)
             #tf.add_to_collection('k', self.k)
             tf.add_to_collection('accuracy', accuracy)
 
         return {
             self.classify: tf.add_n(tf.get_collection('crossentropy_losses'), name='total_classification_loss'),
             #self.g: tf.add_n(tf.get_collection('k'), name='current_k'),
-            # self.lstm: {"y": tf.add_n(tf.get_collection('y_outputs'), name='y_outputs'), #used for debugging
-            #             "sim_1": tf.add_n(tf.get_collection('exp_sim'), name='exp_sim'),
-            #             "sim_2": tf.add_n(tf.get_collection('sim'), name='sim'),
-            #             "support-set": tf.add_n(tf.get_collection('support-set'), name='support-set')},
+            self.g: {"y": tf.add_n(tf.get_collection('y_outputs'), name='y_outputs'), #used for debugging
+                        "sim_1": tf.add_n(tf.get_collection('exp_sim'), name='exp_sim'),
+                        "sim_2": tf.add_n(tf.get_collection('sim'), name='sim'),
+                        "support-set": tf.add_n(tf.get_collection('support-set'), name='support-set')},
             self.dn: tf.add_n(tf.get_collection('accuracy'), name='accuracy')
         }
 

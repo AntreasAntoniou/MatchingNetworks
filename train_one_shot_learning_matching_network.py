@@ -78,7 +78,7 @@ with tf.Session() as sess:
             ignore_missing_vars=True)
         fine_tune(sess)
     else:
-        continue_from_epoch = -1
+        continue_from_epoch = 2
         if continue_from_epoch != -1:
             saver.restore(sess, "saved_models/{}_{}.ckpt".format(experiment_name, continue_from_epoch))
 
@@ -90,14 +90,15 @@ with tf.Session() as sess:
             with tqdm.tqdm(total=total_train_batches) as pbar:
                 for i in range(total_train_batches):
                     x_support_set, y_support_set, x_target, y_target = data.get_train_batch()
-                    _, c_loss_value, acc = sess.run(
-                        [c_error_opt_op, losses[one_shot_omniglot.classify], losses[one_shot_omniglot.dn]],
+                    _, c_loss_value, acc, data_matrix = sess.run(
+                        [c_error_opt_op, losses[one_shot_omniglot.classify], losses[one_shot_omniglot.dn], losses[one_shot_omniglot.g]],
                         feed_dict={keep_prob: 0.9, support_set_images: x_support_set,
                                    support_set_labels: y_support_set, target_image: x_target, target_label: y_target,
                                    training_phase: True})
 
                     iter_out = "train_loss: {}, train_accuracy: {}".format(c_loss_value, acc)
                     pbar.set_description(iter_out)
+                    #print(data_matrix)
                     pbar.update(1)
                     total_c_loss += c_loss_value
                     total_accuracy += acc
