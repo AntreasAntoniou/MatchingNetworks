@@ -1,17 +1,22 @@
 import tensorflow as tf
 from omniglot_networks_classifier import *
+from omniglot_networks_wgan import Generator
 import data as dataset
 import tqdm
 from storage import *
 
 tf.reset_default_graph()
-batch_size = 100
+batch_size = 50
+num_generations_per_sample = 1
 data = dataset.omniglot_dataset(batch_size=batch_size, shuffle=True, single_channel=True)
 logs_path = "omniglot_outputs/"
 input_a = tf.placeholder(tf.float32, [batch_size, 32, 32, 1], 'inputs-1')
 input_b_same_class = tf.placeholder(tf.float32, [batch_size, 32, 32, 1], 'inputs-2-same-class')
 targets = tf.placeholder(tf.int32, [batch_size], 'targets')
-
+use_generator = False
+generator = None
+if use_generator:
+    generator = Generator(num_generations_per_sample, num_channels=1)
 gan_stop_epoch = 1000
 classification_start_epoch = 1500
 train_results_gan_classifier = dict({"loss":[], "total_accuracy": []})
@@ -24,7 +29,7 @@ keep_prob = tf.placeholder(tf.float32, name='dropout-prob')
 
 omni_classifier = omniglot_classifier(batch_size=batch_size, input_x=input_a,
               target_placeholder=targets, keep_prob=keep_prob,
-              num_channels=1, n_classes=data.n_classes, is_training=training_phase)
+              num_channels=1, n_classes=data.n_classes, is_training=training_phase, import_gan=generator, num_generations_per_sample=num_generations_per_sample)
 print(data.n_classes)
 summary, losses, c_error_opt_op = omni_classifier.init_train()
 
@@ -38,8 +43,25 @@ with tf.Session() as sess:
     saver = tf.train.Saver()
     continue_from_epoch = -1
 
-    if continue_from_epoch != -1:
-        saver.restore(sess, "saved_models/{}_{}.ckpt".format("omniglot_classifier_4_layers", continue_from_epoch))
+    if use_generator: #to initialize conv net from GAN encoder embeddings
+        continue_from_epoch = 8
+        checkpoint = "saved_models/{}_{}.ckpt".format("omniglot_wgan_1_channel_64_128_256_256", continue_from_epoch)
+        variables_to_restore = []
+        for var in  tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES):
+            print(var)
+            variables_to_restore.append(var)
+
+
+
+        tf.logging.info('Fine-tuning from %s' % checkpoint)
+
+        fine_tune = slim.assign_from_checkpoint_fn(
+            checkpoint,
+            variables_to_restore,
+            ignore_missing_vars=True)
+        fine_tune(sess)
+    elif continue_from_epoch != -1:
+        saver.restore(sess, "saved_models/{}_{}.ckpt".format("omniglot_wgan_1_channel_64_128_256_256", continue_from_epoch))
 
     with tqdm.tqdm(total=100) as pbar_e:
         for e in range(0, 100):
@@ -51,7 +73,7 @@ with tf.Session() as sess:
                     x_batch, y_batch = data.get_next_train_batch()
 
                     _, c_loss_value, acc = sess.run(
-                        [c_error_opt_op, losses[omni_classifier.g], losses["accuracy"]],
+                        [c_error_opt_op, losses[omni_classifier.c], losses["accuracy"]],
                         feed_dict={keep_prob: 0.5, input_a: x_batch,
                                    targets: y_batch, training_phase: True})
                     total_c_loss += c_loss_value
@@ -74,9 +96,9 @@ with tf.Session() as sess:
                     x_batch, y_batch = data.get_next_train_batch()
 
                     c_loss_value, acc = sess.run(
-                        [losses[omni_classifier.g], losses["accuracy"]],
+                        [losses[omni_classifier.c], losses["accuracy"]],
                         feed_dict={keep_prob: 1.0, input_a: x_batch,
-                                   targets: y_batch, training_phase: True})
+                                   targets: y_batch, training_phase: False})
                     total_c_loss += c_loss_value
                     total_accuracy += acc
                     iter_out = "train_loss: {}, train_accuracy: {}".format(c_loss_value, acc)
@@ -95,7 +117,7 @@ with tf.Session() as sess:
                 for i in range(total_val_batches):
                     x_batch, y_batch = data.get_next_train_batch()
                     c_loss_value, acc = sess.run(
-                        [losses[omni_classifier.g], losses["accuracy"]],
+                        [losses[omni_classifier.c], losses["accuracy"]],
                         feed_dict={keep_prob: 1.0, input_a: x_batch,
                                    targets: y_batch, training_phase: False})
                     total_val_c_loss += c_loss_value
@@ -114,7 +136,7 @@ with tf.Session() as sess:
                 for i in range(total_test_batches):
                     x_batch, y_batch = data.get_next_train_batch()
                     c_loss_value, acc = sess.run(
-                        [losses[omni_classifier.g], losses["accuracy"]],
+                        [losses[omni_classifier.c], losses["accuracy"]],
                         feed_dict={keep_prob: 1.0, input_a: x_batch,
                                    targets: y_batch, training_phase: False})
                     total_test_c_loss += c_loss_value
