@@ -15,16 +15,14 @@ epochs = 200
 logs_path = "one_shot_outputs/"
 experiment_name = "one_shot_learning_embedding_{}_{}".format(samples_per_class, classes_per_set)
 
-data = dataset.omniglot_one_shot_classification(batch_size=batch_size,
+data = dataset.OmniglotNShotDataset(batch_size=batch_size,
                                                 classes_per_set=classes_per_set, samples_per_class=samples_per_class)
-x_support_set, y_support_set, x_target, y_target = data.get_train_batch()
 
 sequence_size = classes_per_set * samples_per_class
 support_set_images = tf.placeholder(tf.float32, [batch_size, sequence_size, 28, 28, channels], 'support_set_images')
 support_set_labels = tf.placeholder(tf.int32, [batch_size, sequence_size], 'support_set_labels')
 target_image = tf.placeholder(tf.float32, [batch_size, 28, 28, channels], 'target_image')
 target_label = tf.placeholder(tf.int32, [batch_size], 'target_label')
-
 training_phase = tf.placeholder(tf.bool, name='training-flag')
 rotate_flag = tf.placeholder(tf.bool, name='rotate-flag')
 keep_prob = tf.placeholder(tf.float32, name='dropout-prob')
@@ -133,6 +131,5 @@ with tf.Session() as sess:
                     total_test_c_loss = total_test_c_loss / total_test_batches
                     total_test_accuracy = total_test_accuracy / total_test_batches
                     print("Epoch {}: test_loss: {}, test_accuracy: {}".format(e, total_test_c_loss, total_test_accuracy))
-            save_path = saver.save(sess, "saved_models/{}_{}.ckpt".format(experiment_name, e))
             save_statistics(experiment_name, [e, total_c_loss, total_accuracy, total_val_c_loss, total_val_accuracy, total_test_c_loss, total_test_accuracy])
             pbar_e.update(1)

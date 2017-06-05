@@ -1,6 +1,6 @@
 import numpy as np
 np.random.seed(2391)
-class omniglot_one_shot_classification():
+class OmniglotNShotDataset():
     def __init__(self, batch_size, classes_per_set=10, samples_per_class=1):
 
         self.x = np.load("data.npy")
