@@ -8,7 +8,7 @@ class BidirectionalLSTM:
         """
         Initializes a multi layer bidirectional LSTM
         :param layer_sizes: A list containing the neuron numbers per layer e.g. [100, 100, 100] returns a 3 layer, 100
-                                                                                                            neuron LSTM
+                                                                                                        neuron bid-LSTM
         :param batch_size: The experiments batch size
         """
         self.reuse = False
@@ -47,12 +47,13 @@ class DistanceNetwork:
 
     def __call__(self, support_set, input_image, name, training=False):
         """
-
+        This module calculates the cosine distance between each of the support set embeddings and the target
+        image embeddings.
         :param support_set: The embeddings of the support set images, tensor of shape [sequence_length, batch_size, 64]
         :param input_image: The embedding of the target image, tensor of shape [batch_size, 64]
         :param name: Name of the op to appear on the graph
         :param training: Flag indicating training or evaluation (True/False)
-        :return:
+        :return: A tensor with cosine similarities of shape [batch_size, sequence_length, 1]
         """
         with tf.name_scope('distance-module' + name), tf.variable_scope('distance-module', reuse=self.reuse):
             eps = 1e-10
@@ -77,13 +78,13 @@ class AttentionalClassify:
 
     def __call__(self, similarities, support_set_y, name, training=False):
         """
-
+        Produces pdfs over the support set classes for the target set image.
         :param similarities: A tensor with cosine similarities of size [sequence_length, batch_size, 1]
         :param support_set_y: A tensor with the one hot vectors of the targets for each support set image
                                                                             [sequence_length,  batch_size, num_classes]
         :param name: The name of the op to appear on tf graph
         :param training: Flag indicating training or evaluation stage (True/False)
-        :return:
+        :return: Softmax pdf
         """
         with tf.name_scope('attentional-classification' + name), tf.variable_scope('attentional-classification',
                                                                                    reuse=self.reuse):
@@ -248,11 +249,11 @@ class MatchingNetwork:
 
             for image in tf.unstack(self.support_set_images, axis=1):  #produce embeddings for support set images
                 image = self.data_augment_batch(image)
-                gen_encode = self.g(conditional_input=image, training=self.is_training, keep_prob=self.keep_prob)
+                gen_encode = self.g(image_input=image, training=self.is_training, keep_prob=self.keep_prob)
                 encoded_images.append(gen_encode)
 
             target_image = self.data_augment_batch(self.target_image)  #produce embedding for target images
-            gen_encode = self.g(conditional_input=target_image, training=self.is_training, keep_prob=self.keep_prob)
+            gen_encode = self.g(image_input=target_image, training=self.is_training, keep_prob=self.keep_prob)
 
             encoded_images.append(gen_encode)
 
