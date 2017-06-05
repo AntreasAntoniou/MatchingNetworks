@@ -1,4 +1,5 @@
 from one_shot_learning_network import *
+from experiment_builder import ExperimentBuilder
 import tensorflow.contrib.slim as slim
 import data as dataset
 import tqdm
@@ -12,7 +13,7 @@ fce = False
 classes_per_set = 20
 samples_per_class = 1
 channels = 1
-continue_from_epoch = -1
+continue_from_epoch = -1  # use -1 to start from scratch
 epochs = 200
 logs_path = "one_shot_outputs/"
 experiment_name = "one_shot_learning_embedding_{}_{}".format(samples_per_class, classes_per_set)
@@ -20,28 +21,15 @@ experiment_name = "one_shot_learning_embedding_{}_{}".format(samples_per_class, 
 # Experiment builder
 data = dataset.OmniglotNShotDataset(batch_size=batch_size,
                                     classes_per_set=classes_per_set, samples_per_class=samples_per_class)
-sequence_size = classes_per_set * samples_per_class
-support_set_images = tf.placeholder(tf.float32, [batch_size, sequence_size, 28, 28, channels], 'support_set_images')
-support_set_labels = tf.placeholder(tf.int32, [batch_size, sequence_size], 'support_set_labels')
-target_image = tf.placeholder(tf.float32, [batch_size, 28, 28, channels], 'target_image')
-target_label = tf.placeholder(tf.int32, [batch_size], 'target_label')
-training_phase = tf.placeholder(tf.bool, name='training-flag')
-rotate_flag = tf.placeholder(tf.bool, name='rotate-flag')
-keep_prob = tf.placeholder(tf.float32, name='dropout-prob')
-one_shot_omniglot = MatchingNetwork(batch_size=batch_size, support_set_images=support_set_images,
-                                    support_set_labels=support_set_labels,
-                                    target_image=target_image, target_label=target_label,
-                                    keep_prob=keep_prob, num_channels=channels,
-                                    is_training=training_phase, fce=fce, rotate_flag=rotate_flag,
-                                    num_classes_per_set=classes_per_set, num_samples_per_class=samples_per_class)
-
-summary, losses, c_error_opt_op = one_shot_omniglot.init_train()
-
+experiment = ExperimentBuilder(data)
+one_shot_omniglot, losses, c_error_opt_op, init = experiment.build_experiment(batch_size,
+                                                                                     classes_per_set,
+                                                                                     samples_per_class, channels, fce)
+total_epochs = 300
 total_train_batches = 1000
 total_val_batches = 100
 total_test_batches = 250
 
-init = tf.global_variables_initializer()
 save_statistics(experiment_name, ["epoch", "train_c_loss", "train_c_accuracy", "val_loss", "val_accuracy",
                                   "test_c_loss", "test_c_accuracy"])
 
@@ -65,77 +53,29 @@ with tf.Session() as sess:
         fine_tune(sess)
 
     best_val = 0.
-    with tqdm.tqdm(total=2000) as pbar_e:
-        for e in range(0, 2000):
-            total_c_loss = 0.
-            total_accuracy = 0.
-            with tqdm.tqdm(total=total_train_batches) as pbar:
-                for i in range(total_train_batches): #train epoch
-                    x_support_set, y_support_set, x_target, y_target = data.get_train_batch()
-                    _, c_loss_value, acc = sess.run(
-                        [c_error_opt_op, losses[one_shot_omniglot.classify], losses[one_shot_omniglot.dn]],
-                        feed_dict={keep_prob: 1.0, support_set_images: x_support_set,
-                                   support_set_labels: y_support_set, target_image: x_target, target_label: y_target,
-                                   training_phase: True, rotate_flag: True})
-
-                    iter_out = "train_loss: {}, train_accuracy: {}".format(c_loss_value, acc)
-                    pbar.set_description(iter_out)
-
-                    pbar.update(1)
-                    total_c_loss += c_loss_value
-                    total_accuracy += acc
-            save_path = saver.save(sess, "saved_models/{}_{}.ckpt".format(experiment_name, e))
-
-            total_c_loss = total_c_loss / total_train_batches
-            total_accuracy = total_accuracy / total_train_batches
+    with tqdm.tqdm(total=total_epochs) as pbar_e:
+        for e in range(0, total_epochs):
+            total_c_loss, total_accuracy = experiment.run_training_epoch(total_train_batches=total_train_batches,
+                                                                                sess=sess)
             print("Epoch {}: train_loss: {}, train_accuracy: {}".format(e, total_c_loss, total_accuracy))
 
-            total_val_c_loss = 0.
-            total_val_accuracy = 0.
-
-            with tqdm.tqdm(total=total_val_batches) as pbar:
-                for i in range(total_val_batches): #validation epoch
-                    x_support_set, y_support_set, x_target, y_target = data.get_val_batch()
-                    c_loss_value, acc = sess.run(
-                        [losses[one_shot_omniglot.classify], losses[one_shot_omniglot.dn]],
-                        feed_dict={keep_prob: 1.0, support_set_images: x_support_set,
-                                   support_set_labels: y_support_set, target_image: x_target, target_label: y_target,
-                                   training_phase: False, rotate_flag: True})
-
-                    iter_out = "val_loss: {}, val_accuracy: {}".format(c_loss_value, acc)
-                    pbar.set_description(iter_out)
-                    pbar.update(1)
-
-                    total_val_c_loss += c_loss_value
-                    total_val_accuracy += acc
-            total_val_c_loss = total_val_c_loss / total_val_batches
-            total_val_accuracy = total_val_accuracy / total_val_batches
-            total_test_c_loss = 0.
-            total_test_accuracy = 0.
+            total_val_c_loss, total_val_accuracy = experiment.run_validation_epoch(
+                                                                                total_val_batches=total_val_batches,
+                                                                                sess=sess)
             print("Epoch {}: val_loss: {}, val_accuracy: {}".format(e, total_val_c_loss, total_val_accuracy))
-            if total_val_accuracy >= best_val: #if new best val accuracy produce test statistics
+
+            if total_val_accuracy >= best_val: #if new best val accuracy -> produce test statistics
                 best_val = total_val_accuracy
-                with tqdm.tqdm(total=total_test_batches) as pbar:
-                    for i in range(total_test_batches):
-                        x_support_set, y_support_set, x_target, y_target = data.get_test_batch()
-                        c_loss_value, acc = sess.run(
-                            [losses[one_shot_omniglot.classify], losses[one_shot_omniglot.dn]],
-                            feed_dict={keep_prob: 1.0, support_set_images: x_support_set,
-                                       support_set_labels: y_support_set, target_image: x_target,
-                                       target_label: y_target,
-                                       training_phase: False, rotate_flag: True})
+                total_test_c_loss, total_test_accuracy = experiment.run_testing_epoch(
+                                                                    total_test_batches=total_test_batches, sess=sess)
+                print("Epoch {}: test_loss: {}, test_accuracy: {}".format(e, total_test_c_loss, total_test_accuracy))
+            else:
+                total_test_c_loss = -1
+                total_test_accuracy = -1
 
-                        iter_out = "test_loss: {}, test_accuracy: {}".format(c_loss_value, acc)
-                        pbar.set_description(iter_out)
-                        pbar.update(1)
-
-                        total_test_c_loss += c_loss_value
-                        total_test_accuracy += acc
-                    total_test_c_loss = total_test_c_loss / total_test_batches
-                    total_test_accuracy = total_test_accuracy / total_test_batches
-                    print(
-                    "Epoch {}: test_loss: {}, test_accuracy: {}".format(e, total_test_c_loss, total_test_accuracy))
             save_statistics(experiment_name,
                             [e, total_c_loss, total_accuracy, total_val_c_loss, total_val_accuracy, total_test_c_loss,
                              total_test_accuracy])
+
+            save_path = saver.save(sess, "saved_models/{}_{}.ckpt".format(experiment_name, e))
             pbar_e.update(1)
