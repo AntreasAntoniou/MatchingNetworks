@@ -2,11 +2,13 @@ import tensorflow as tf
 import tensorflow.contrib.rnn as rnn
 from tensorflow.python.ops.nn_ops import max_pool
 
-class BidirectionalLSTM():
+
+class BidirectionalLSTM:
     def __init__(self, layer_sizes, batch_size):
         self.reuse = False
         self.batch_size = batch_size
         self.layer_sizes = layer_sizes
+
     def __call__(self, inputs, name, training=False):
         with tf.name_scope('bid-lstm' + name), tf.variable_scope('bid-lstm', reuse=self.reuse):
             fw_lstm_cells = [rnn.LSTMCell(num_units=self.layer_sizes[i], activation=tf.nn.tanh) for i in range(len(self.layer_sizes))]
@@ -23,40 +25,39 @@ class BidirectionalLSTM():
         self.variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='bid-lstm')
         return outputs, output_state_fw, output_state_bw
 
-class DistanceNetwork():
+
+class DistanceNetwork:
     def __init__(self):
         self.reuse = False
+
     def __call__(self, support_set, input_image, name, training=False):
         with tf.name_scope('distance-module' + name), tf.variable_scope('distance-module', reuse=self.reuse):
             eps = 1e-10
             similarities = []
             for support_image in tf.unstack(support_set, axis=0):
-                x_i_inv_mag = tf.rsqrt(
-                    tf.clip_by_value(tf.reduce_sum(tf.square(support_image), 1, keep_dims=True), eps, float("inf")))
-                dotted = tf.squeeze(
-                    tf.matmul(tf.expand_dims(input_image, 1), tf.expand_dims(support_image, 2)), [1, ])
-                similarities.append(dotted
-                                    * x_i_inv_mag)
-            # *x_hat_inv_mag
-        similarities = tf.concat(axis=1, values=similarities)
+                sum_support = tf.reduce_sum(tf.square(support_image), 1, keep_dims=True)
+                support_magnitude = tf.rsqrt(tf.clip_by_value(sum_support, eps, float("inf")))
+                dot_product = tf.matmul(tf.expand_dims(input_image, 1), tf.expand_dims(support_image, 2))
+                dot_product = tf.squeeze(dot_product, [1, ])
+                cosine_similarity = dot_product * support_magnitude
+                similarities.append(cosine_similarity)
 
+        similarities = tf.concat(axis=1, values=similarities)
         self.variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='distance-module')
 
         return similarities
 
-class AttentionalClassify():
+
+class AttentionalClassify:
     def __init__(self):
         self.reuse = False
     def __call__(self, similarities, support_set_y, name, training=False):
         with tf.name_scope('attentional-classification' + name), tf.variable_scope('attentional-classification', reuse=self.reuse):
-            #support_set_y = tf.stack(support_set_y, axis=1)
-            #similarities = tf.stack(similarities, axis=1)
-            concat_similarities = similarities
-            weighting = tf.nn.softmax(concat_similarities)
-            preds = tf.squeeze(tf.matmul(tf.expand_dims(weighting, 1), support_set_y))
-
+            softmax_similarities = tf.nn.softmax(similarities)
+            preds = tf.squeeze(tf.matmul(tf.expand_dims(softmax_similarities, 1), support_set_y))
         self.variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='attentional-classification')
-        return preds, weighting, concat_similarities, similarities, support_set_y
+        return preds
+
 
 class Classifier:
     def __init__(self, batch_size, num_channels=1):
@@ -69,7 +70,6 @@ class Classifier:
 
         conditional_input = tf.convert_to_tensor(conditional_input)
         with tf.variable_scope('g', reuse=self.reuse):
-            # reshape from inputs
 
             with tf.variable_scope('conv_layers'):
                 with tf.variable_scope('g_conv1'):
@@ -79,7 +79,7 @@ class Classifier:
                     g_conv1_encoder = max_pool(g_conv1_encoder, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
                                                padding='SAME')
                     g_conv1_encoder = tf.nn.dropout(g_conv1_encoder, keep_prob=keep_prob)
-                    print(g_conv1_encoder.get_shape())
+
                 with tf.variable_scope('g_conv2'):
                     g_conv2_encoder = tf.layers.conv2d(g_conv1_encoder, 64, [3, 3], strides=(1, 1), padding='VALID')
                     g_conv2_encoder = leaky_relu(g_conv2_encoder, name='outputs')
@@ -87,7 +87,7 @@ class Classifier:
                     g_conv2_encoder = max_pool(g_conv2_encoder, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
                                                padding='SAME')
                     g_conv2_encoder = tf.nn.dropout(g_conv2_encoder, keep_prob=keep_prob)
-                    print(g_conv2_encoder.get_shape())
+
                 with tf.variable_scope('g_conv3'):
                     g_conv3_encoder = tf.layers.conv2d(g_conv2_encoder, 64, [3, 3], strides=(1, 1), padding='VALID')
                     g_conv3_encoder = leaky_relu(g_conv3_encoder, name='outputs')
@@ -95,24 +95,26 @@ class Classifier:
                     g_conv3_encoder = max_pool(g_conv3_encoder, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
                                                padding='SAME')
                     g_conv3_encoder = tf.nn.dropout(g_conv3_encoder, keep_prob=keep_prob)
-                    print(g_conv3_encoder.get_shape())
+
                 with tf.variable_scope('g_conv4'):
                     g_conv4_encoder = tf.layers.conv2d(g_conv3_encoder, 64, [2, 2], strides=(1, 1), padding='VALID')
                     g_conv4_encoder = leaky_relu(g_conv4_encoder, name='outputs')
                     g_conv4_encoder = tf.contrib.layers.batch_norm(g_conv4_encoder, is_training=training)
                     g_conv4_encoder = max_pool(g_conv4_encoder, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
                     g_conv4_encoder = tf.nn.dropout(g_conv4_encoder, keep_prob=keep_prob)
-                    print(g_conv4_encoder.get_shape())
+
             g_conv_encoder = g_conv4_encoder
             g_conv_encoder = tf.contrib.layers.flatten(g_conv_encoder)
-            print(g_conv_encoder.shape)
 
         self.reuse = True
         self.variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='g')
         return g_conv_encoder
+
+
 class MatchingNetwork:
     def __init__(self, support_set_images, support_set_labels, target_image, target_label, keep_prob,
-                 batch_size=100, num_channels=1, is_training=False, rotate_flag=False, fce=False, num_classes_per_set=5, num_samples_per_class=1):
+                 batch_size=100, num_channels=1, is_training=False, rotate_flag=False, fce=False, num_classes_per_set=5,
+                 num_samples_per_class=1):
 
         self.batch_size = batch_size
         self.fce = fce
@@ -133,8 +135,6 @@ class MatchingNetwork:
         self.num_samples_per_class = num_samples_per_class
 
     def rotate_data(self, image):
-        # image = tf.image.random_flip_up_down(image)
-        # image = tf.image.random_flip_left_right(image)
         if self.k is None:
             self.k = tf.unstack(tf.random_uniform([1], minval=1, maxval=4, dtype=tf.int32, seed=None, name=None))
         image = tf.image.rot90(image, k=self.k[0])
@@ -179,29 +179,23 @@ class MatchingNetwork:
             gen_encode = tf.contrib.layers.flatten(gen_encode)
             encoded_images.append(gen_encode)
             if self.fce:
-                encoded_images, output_state_fw, output_state_bw = self.lstm(encoded_images, name="lstm", training=self.is_training)
+                encoded_images, output_state_fw, output_state_bw = self.lstm(encoded_images, name="lstm",
+                                                                             training=self.is_training)
             outputs = tf.stack(encoded_images)
-            similarities = self.dn(support_set=outputs[:-1], input_image=outputs[-1], name="distance_calculation", training=self.is_training)
-            preds, y_output, exponentiated_similarities, similarities, support_set_y = self.classify(similarities, support_set_y=self.support_set_labels, name='classify', training=self.is_training)
+            similarities = self.dn(support_set=outputs[:-1], input_image=outputs[-1], name="distance_calculation",
+                                   training=self.is_training)
+            preds = self.classify(similarities,
+                                support_set_y=self.support_set_labels, name='classify', training=self.is_training)
             correct_prediction = tf.equal(tf.argmax(preds, 1), tf.cast(self.target_label, tf.int64))
             accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-            crossentropy_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.target_label, logits=preds))
+            crossentropy_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.target_label,
+                                                                                              logits=preds))
 
             tf.add_to_collection('crossentropy_losses', crossentropy_loss)
-            tf.add_to_collection('y_outputs', y_output) # to be used for debugging
-            tf.add_to_collection('exp_sim', exponentiated_similarities)
-            tf.add_to_collection('sim', similarities)
-            tf.add_to_collection('support-set', support_set_y)
-            #tf.add_to_collection('k', self.k)
             tf.add_to_collection('accuracy', accuracy)
 
         return {
             self.classify: tf.add_n(tf.get_collection('crossentropy_losses'), name='total_classification_loss'),
-            #self.g: tf.add_n(tf.get_collection('k'), name='current_k'),
-            self.g: {"y": tf.add_n(tf.get_collection('y_outputs'), name='y_outputs'), #used for debugging
-                        "sim_1": tf.add_n(tf.get_collection('exp_sim'), name='exp_sim'),
-                        "sim_2": tf.add_n(tf.get_collection('sim'), name='sim'),
-                        "support-set": tf.add_n(tf.get_collection('support-set'), name='support-set')},
             self.dn: tf.add_n(tf.get_collection('accuracy'), name='accuracy')
         }
 
