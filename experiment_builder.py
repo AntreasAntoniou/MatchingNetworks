@@ -34,16 +34,19 @@ class ExperimentBuilder:
         self.training_phase = tf.placeholder(tf.bool, name='training-flag')
         self.rotate_flag = tf.placeholder(tf.bool, name='rotate-flag')
         self.keep_prob = tf.placeholder(tf.float32, name='dropout-prob')
+        self.current_learning_rate = 1e-03
+        self.learning_rate = tf.placeholder(tf.float32, name='learning-rate-set')
         self.one_shot_omniglot = MatchingNetwork(batch_size=batch_size, support_set_images=self.support_set_images,
                                             support_set_labels=self.support_set_labels,
                                             target_image=self.target_image, target_label=self.target_label,
                                             keep_prob=self.keep_prob, num_channels=channels,
                                             is_training=self.training_phase, fce=fce, rotate_flag=self.rotate_flag,
                                             num_classes_per_set=classes_per_set,
-                                            num_samples_per_class=samples_per_class)
+                                            num_samples_per_class=samples_per_class, learning_rate=self.learning_rate)
 
         summary, self.losses, self.c_error_opt_op = self.one_shot_omniglot.init_train()
         init = tf.global_variables_initializer()
+        self.total_train_iter = 0
         return self.one_shot_omniglot, self.losses, self.c_error_opt_op, init
 
     def run_training_epoch(self, total_train_batches, sess):
@@ -63,7 +66,7 @@ class ExperimentBuilder:
                     [self.c_error_opt_op, self.losses[self.one_shot_omniglot.classify], self.losses[self.one_shot_omniglot.dn]],
                     feed_dict={self.keep_prob: 1.0, self.support_set_images: x_support_set,
                                self.support_set_labels: y_support_set, self.target_image: x_target, self.target_label: y_target,
-                               self.training_phase: True, self.rotate_flag: True})
+                               self.training_phase: True, self.rotate_flag: True, self.learning_rate: self.current_learning_rate})
 
                 iter_out = "train_loss: {}, train_accuracy: {}".format(c_loss_value, acc)
                 pbar.set_description(iter_out)
@@ -71,6 +74,10 @@ class ExperimentBuilder:
                 pbar.update(1)
                 total_c_loss += c_loss_value
                 total_accuracy += acc
+                self.total_train_iter += 1
+                if self.total_train_iter % 2000 == 0:
+                    self.current_learning_rate /= 2
+                    print("change learning rate", self.current_learning_rate)
 
         total_c_loss = total_c_loss / total_train_batches
         total_accuracy = total_accuracy / total_train_batches

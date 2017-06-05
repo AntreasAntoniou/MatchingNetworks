@@ -169,7 +169,7 @@ class Classifier:
 
 class MatchingNetwork:
     def __init__(self, support_set_images, support_set_labels, target_image, target_label, keep_prob,
-                 batch_size=100, num_channels=1, is_training=False, rotate_flag=False, fce=False, num_classes_per_set=5,
+                 batch_size=100, num_channels=1, is_training=False, learning_rate=0.001, rotate_flag=False, fce=False, num_classes_per_set=5,
                  num_samples_per_class=1):
 
         """
@@ -204,6 +204,7 @@ class MatchingNetwork:
         self.rotate_flag = rotate_flag
         self.num_classes_per_set = num_classes_per_set
         self.num_samples_per_class = num_samples_per_class
+        self.learning_rate = learning_rate
 
     def rotate_data(self, image):
         """
@@ -273,7 +274,7 @@ class MatchingNetwork:
             preds = self.classify(similarities,
                                 support_set_y=self.support_set_labels, name='classify', training=self.is_training)
                                 # produce predictions for target probabilities
-
+            self.k = None
             correct_prediction = tf.equal(tf.argmax(preds, 1), tf.cast(self.target_label, tf.int64))
             accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
             crossentropy_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.target_label,
@@ -287,7 +288,7 @@ class MatchingNetwork:
             self.dn: tf.add_n(tf.get_collection('accuracy'), name='accuracy')
         }
 
-    def train(self, losses, learning_rate=4e-5, beta1=0.9):
+    def train(self, losses):
 
         """
         Builds the train op
@@ -296,7 +297,7 @@ class MatchingNetwork:
         :param beta1: Beta1 to be used for Adam
         :return:
         """
-        c_opt = tf.train.AdamOptimizer(beta1=beta1, learning_rate=learning_rate)
+        c_opt = tf.train.AdamOptimizer(beta1=0.9, learning_rate=self.learning_rate)
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)  # Needed for correct batch norm usage
         with tf.control_dependencies(update_ops):  # Needed for correct batch norm usage
             if self.fce:

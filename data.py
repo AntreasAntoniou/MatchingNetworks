@@ -14,6 +14,9 @@ class OmniglotNShotDataset():
         """
         self.x = np.load("data.npy")
         self.x = np.reshape(self.x, [-1, 20, 28, 28, 1])
+        shuffle_classes = np.arange(self.x.shape[0])
+        np.random.shuffle(shuffle_classes)
+        self.x = self.x[shuffle_classes]
         self.x_train, self.x_test, self.x_val  = self.x[:1200], self.x[1200:1500], self.x[1500:]
         self.normalization()
 
@@ -51,7 +54,7 @@ class OmniglotNShotDataset():
         """
         Collects 1000 batches data for N-shot learning
         :param data_pack: Data pack to use (any one of train, val, test)
-        :return: A list with support_set and target_sets ready to be fed to our networks
+        :return: A list with [support_set_x, support_set_y, target_x, target_y] ready to be fed to our networks
         """
         n_samples = self.samples_per_class * self.classes_per_set
         data_cache = []
