@@ -10,7 +10,7 @@ class ExperimentBuilder:
         Initializes an ExperimentBuilder object. The ExperimentBuilder object takes care of setting up our experiment
         and provides helper functions such as run_training_epoch and run_validation_epoch to simplify out training
         and evaluation procedures.
-        :param data:
+        :param data: A data provider class
         """
         self.data = data
 
