@@ -6,9 +6,9 @@ To train a model simply modify the experiment parameters in the [train_one_shot_
 ```
 classes_per_set = 20
 samples_per_class = 1
-
+```
 to 
-
+```
 classes_per_set = 5
 samples_per_class = 1
 ```
