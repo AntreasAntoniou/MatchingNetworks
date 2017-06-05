@@ -6,10 +6,25 @@ from one_shot_learning_network import MatchingNetwork
 class ExperimentBuilder:
 
     def __init__(self, data):
+        """
+        Initializes an ExperimentBuilder object. The ExperimentBuilder object takes care of setting up our experiment
+        and provides helper functions such as run_training_epoch and run_validation_epoch to simplify out training
+        and evaluation procedures.
+        :param data:
+        """
         self.data = data
 
     def build_experiment(self, batch_size, classes_per_set, samples_per_class, channels, fce):
 
+        """
+
+        :param batch_size: The experiment batch size
+        :param classes_per_set: An integer indicating the number of classes per support set
+        :param samples_per_class: An integer indicating the number of samples per class
+        :param channels: The image channels
+        :param fce: Whether to use full context embeddings or not
+        :return: a matching_network object, along with the losses, the training ops and the init op
+        """
         sequence_size = classes_per_set * samples_per_class
         self.support_set_images = tf.placeholder(tf.float32, [batch_size, sequence_size, 28, 28, channels],
                                             'support_set_images')
@@ -32,6 +47,12 @@ class ExperimentBuilder:
         return self.one_shot_omniglot, self.losses, self.c_error_opt_op, init
 
     def run_training_epoch(self, total_train_batches, sess):
+        """
+        Runs one training epoch
+        :param total_train_batches: Number of batches to train on
+        :param sess: Session object
+        :return: mean_training_categorical_crossentropy_loss and mean_training_accuracy
+        """
         total_c_loss = 0.
         total_accuracy = 0.
         with tqdm.tqdm(total=total_train_batches) as pbar:
@@ -56,6 +77,12 @@ class ExperimentBuilder:
         return total_c_loss, total_accuracy
 
     def run_validation_epoch(self, total_val_batches, sess):
+        """
+        Runs one validation epoch
+        :param total_val_batches: Number of batches to train on
+        :param sess: Session object
+        :return: mean_validation_categorical_crossentropy_loss and mean_validation_accuracy
+        """
         total_val_c_loss = 0.
         total_val_accuracy = 0.
 
@@ -81,6 +108,12 @@ class ExperimentBuilder:
         return total_val_c_loss, total_val_accuracy
 
     def run_testing_epoch(self, total_test_batches, sess):
+        """
+        Runs one testing epoch
+        :param total_test_batches: Number of batches to train on
+        :param sess: Session object
+        :return: mean_testing_categorical_crossentropy_loss and mean_testing_accuracy
+        """
         total_test_c_loss = 0.
         total_test_accuracy = 0.
         with tqdm.tqdm(total=total_test_batches) as pbar:

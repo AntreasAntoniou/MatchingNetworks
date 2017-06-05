@@ -24,9 +24,9 @@ class OmniglotNShotDataset():
 
         self.indexes = {"train": 0, "val": 0, "test": 0}
         self.datasets = {"train": self.x_train, "val": self.x_val, "test": self.x_test} #original data cached
-        self.datasets_cache = {"train": self.get_data(self.datasets["train"]),  #current epoch data cached
-                               "val": self.get_data(self.datasets["val"]),
-                               "test": self.get_data(self.datasets["test"])}
+        self.datasets_cache = {"train": self.load_data_cache(self.datasets["train"]),  #current epoch data cached
+                               "val": self.load_data_cache(self.datasets["val"]),
+                               "test": self.load_data_cache(self.datasets["test"])}
 
     def normalization(self):
         """
@@ -47,7 +47,7 @@ class OmniglotNShotDataset():
         self.min = np.min(self.x_train)
         print("after_normalization", "mean", self.mean, "max", self.max, "min", self.min, "std", self.std)
 
-    def get_data(self, data_pack):
+    def load_data_cache(self, data_pack):
         """
         Collects 1000 batches data for N-shot learning
         :param data_pack: Data pack to use (any one of train, val, test)
@@ -86,7 +86,7 @@ class OmniglotNShotDataset():
         """
         if self.indexes[dataset_name] >= len(self.datasets_cache[dataset_name]):
             self.indexes[dataset_name] = 0
-            self.datasets_cache[dataset_name] = self.get_data(self.datasets[dataset_name])
+            self.datasets_cache[dataset_name] = self.load_data_cache(self.datasets[dataset_name])
         batch_out = self.datasets_cache[dataset_name][self.indexes[dataset_name]]
         self.indexes[dataset_name] += 1
         x_support_set, y_support_set, x_target, y_target = batch_out
