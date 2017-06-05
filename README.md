@@ -12,6 +12,7 @@ to
 classes_per_set = 5
 samples_per_class = 1
 ```
+And then run `python train_one_shot_learning_matching_network.py`
 # Acknowledgements
 Special thanks to https://github.com/zergylord for his Matching Networks implementation of which parts were used for this implementation. More details at https://github.com/zergylord/oneshot
 
