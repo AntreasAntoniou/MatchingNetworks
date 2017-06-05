@@ -37,9 +37,9 @@ one_shot_omniglot = MatchingNetwork(batch_size=batch_size, support_set_images=su
 
 summary, losses, c_error_opt_op = one_shot_omniglot.init_train()
 
-total_train_batches = 10
-total_val_batches = 10
-total_test_batches = 25
+total_train_batches = 1000
+total_val_batches = 100
+total_test_batches = 250
 
 init = tf.global_variables_initializer()
 save_statistics(experiment_name, ["epoch", "train_c_loss", "train_c_accuracy", "val_loss", "val_accuracy",
