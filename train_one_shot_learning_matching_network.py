@@ -5,6 +5,8 @@ import tqdm
 from storage import *
 
 tf.reset_default_graph()
+
+# Experiment Setup
 batch_size = 32
 fce = False
 classes_per_set = 20
@@ -15,9 +17,9 @@ epochs = 200
 logs_path = "one_shot_outputs/"
 experiment_name = "one_shot_learning_embedding_{}_{}".format(samples_per_class, classes_per_set)
 
+# Experiment builder
 data = dataset.OmniglotNShotDataset(batch_size=batch_size,
-                                                classes_per_set=classes_per_set, samples_per_class=samples_per_class)
-
+                                    classes_per_set=classes_per_set, samples_per_class=samples_per_class)
 sequence_size = classes_per_set * samples_per_class
 support_set_images = tf.placeholder(tf.float32, [batch_size, sequence_size, 28, 28, channels], 'support_set_images')
 support_set_labels = tf.placeholder(tf.int32, [batch_size, sequence_size], 'support_set_labels')
@@ -26,7 +28,6 @@ target_label = tf.placeholder(tf.int32, [batch_size], 'target_label')
 training_phase = tf.placeholder(tf.bool, name='training-flag')
 rotate_flag = tf.placeholder(tf.bool, name='rotate-flag')
 keep_prob = tf.placeholder(tf.float32, name='dropout-prob')
-
 one_shot_omniglot = MatchingNetwork(batch_size=batch_size, support_set_images=support_set_images,
                                     support_set_labels=support_set_labels,
                                     target_image=target_image, target_label=target_label,
@@ -36,18 +37,19 @@ one_shot_omniglot = MatchingNetwork(batch_size=batch_size, support_set_images=su
 
 summary, losses, c_error_opt_op = one_shot_omniglot.init_train()
 
-total_train_batches = 1000
-total_val_batches = 100
-total_test_batches = 250
+total_train_batches = 10
+total_val_batches = 10
+total_test_batches = 25
 
 init = tf.global_variables_initializer()
 save_statistics(experiment_name, ["epoch", "train_c_loss", "train_c_accuracy", "val_loss", "val_accuracy",
                                   "test_c_loss", "test_c_accuracy"])
 
+# Experiment initialization and running
 with tf.Session() as sess:
     sess.run(init)
     saver = tf.train.Saver()
-    if continue_from_epoch != -1:
+    if continue_from_epoch != -1: #load checkpoint if needed
         checkpoint = "saved_models/{}_{}.ckpt".format(experiment_name, continue_from_epoch)
         variables_to_restore = []
         for var in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES):
@@ -68,7 +70,7 @@ with tf.Session() as sess:
             total_c_loss = 0.
             total_accuracy = 0.
             with tqdm.tqdm(total=total_train_batches) as pbar:
-                for i in range(total_train_batches):
+                for i in range(total_train_batches): #train epoch
                     x_support_set, y_support_set, x_target, y_target = data.get_train_batch()
                     _, c_loss_value, acc = sess.run(
                         [c_error_opt_op, losses[one_shot_omniglot.classify], losses[one_shot_omniglot.dn]],
@@ -92,7 +94,7 @@ with tf.Session() as sess:
             total_val_accuracy = 0.
 
             with tqdm.tqdm(total=total_val_batches) as pbar:
-                for i in range(total_val_batches):
+                for i in range(total_val_batches): #validation epoch
                     x_support_set, y_support_set, x_target, y_target = data.get_val_batch()
                     c_loss_value, acc = sess.run(
                         [losses[one_shot_omniglot.classify], losses[one_shot_omniglot.dn]],
@@ -111,7 +113,7 @@ with tf.Session() as sess:
             total_test_c_loss = 0.
             total_test_accuracy = 0.
             print("Epoch {}: val_loss: {}, val_accuracy: {}".format(e, total_val_c_loss, total_val_accuracy))
-            if total_val_accuracy>=best_val:
+            if total_val_accuracy >= best_val: #if new best val accuracy produce test statistics
                 best_val = total_val_accuracy
                 with tqdm.tqdm(total=total_test_batches) as pbar:
                     for i in range(total_test_batches):
@@ -119,7 +121,8 @@ with tf.Session() as sess:
                         c_loss_value, acc = sess.run(
                             [losses[one_shot_omniglot.classify], losses[one_shot_omniglot.dn]],
                             feed_dict={keep_prob: 1.0, support_set_images: x_support_set,
-                                       support_set_labels: y_support_set, target_image: x_target, target_label: y_target,
+                                       support_set_labels: y_support_set, target_image: x_target,
+                                       target_label: y_target,
                                        training_phase: False, rotate_flag: True})
 
                         iter_out = "test_loss: {}, test_accuracy: {}".format(c_loss_value, acc)
@@ -130,6 +133,9 @@ with tf.Session() as sess:
                         total_test_accuracy += acc
                     total_test_c_loss = total_test_c_loss / total_test_batches
                     total_test_accuracy = total_test_accuracy / total_test_batches
-                    print("Epoch {}: test_loss: {}, test_accuracy: {}".format(e, total_test_c_loss, total_test_accuracy))
-            save_statistics(experiment_name, [e, total_c_loss, total_accuracy, total_val_c_loss, total_val_accuracy, total_test_c_loss, total_test_accuracy])
+                    print(
+                    "Epoch {}: test_loss: {}, test_accuracy: {}".format(e, total_test_c_loss, total_test_accuracy))
+            save_statistics(experiment_name,
+                            [e, total_c_loss, total_accuracy, total_val_c_loss, total_val_accuracy, total_test_c_loss,
+                             total_test_accuracy])
             pbar_e.update(1)
