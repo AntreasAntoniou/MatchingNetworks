@@ -1,5 +1,5 @@
-# MatchingNetworks
-An attempt at replicating the Matching Networks for One Shot Learning Paper within Tensorflow.
+# MatchingNetworks Tensorflow Implementation
+This repo provides code that replicated the results of the Matching Networks for One Shot Learning paper on the Omniglot dataset.
 
 # Training a model
 To train a model simply modify the experiment parameters in the [train_one_shot_learning_matching_network.py](https://github.com/AntreasAntoniou/MatchingNetworks/blob/master/train_one_shot_learning_matching_network.py) to match your requirements, for a one shot, 20-way experiment leave the parameters to default, for a 5-way one shot learning modify 
