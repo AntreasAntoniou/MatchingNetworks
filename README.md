@@ -22,4 +22,4 @@ Our implementation uses the omniglot dataset, but one can easily add a new data 
 # Acknowledgements
 Special thanks to https://github.com/zergylord for his Matching Networks implementation of which parts were used for this implementation. More details at https://github.com/zergylord/oneshot
 
-Additional thanks to my colleages https://github.com/gngdb, https://github.com/ZackHodari and https://github.com/artur-bekasov for reviewing my code and providing pointers.
+Additional thanks to my colleagues https://github.com/gngdb, https://github.com/ZackHodari and https://github.com/artur-bekasov for reviewing my code and providing pointers.
