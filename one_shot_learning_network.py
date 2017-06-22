@@ -127,7 +127,8 @@ class Classifier:
                     g_conv1_encoder = tf.layers.conv2d(image_input, self.layer_sizes[0], [3, 3], strides=(1, 1),
                                                        padding='VALID')
                     g_conv1_encoder = leaky_relu(g_conv1_encoder, name='outputs')
-                    g_conv1_encoder = tf.contrib.layers.batch_norm(g_conv1_encoder, is_training=training)
+                    g_conv1_encoder = tf.contrib.layers.batch_norm(g_conv1_encoder, updates_collections=None, decay=0.99,
+                                                                   scale=True, center=True, is_training=training)
                     g_conv1_encoder = max_pool(g_conv1_encoder, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
                                                padding='SAME')
                     g_conv1_encoder = tf.nn.dropout(g_conv1_encoder, keep_prob=keep_prob)
@@ -136,7 +137,9 @@ class Classifier:
                     g_conv2_encoder = tf.layers.conv2d(g_conv1_encoder, self.layer_sizes[1], [3, 3], strides=(1, 1),
                                                        padding='VALID')
                     g_conv2_encoder = leaky_relu(g_conv2_encoder, name='outputs')
-                    g_conv2_encoder = tf.contrib.layers.batch_norm(g_conv2_encoder, is_training=training)
+                    g_conv2_encoder = tf.contrib.layers.batch_norm(g_conv2_encoder, updates_collections=None,
+                                                                   decay=0.99,
+                                                                   scale=True, center=True, is_training=training)
                     g_conv2_encoder = max_pool(g_conv2_encoder, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
                                                padding='SAME')
                     g_conv2_encoder = tf.nn.dropout(g_conv2_encoder, keep_prob=keep_prob)
@@ -145,7 +148,9 @@ class Classifier:
                     g_conv3_encoder = tf.layers.conv2d(g_conv2_encoder, self.layer_sizes[2], [3, 3], strides=(1, 1),
                                                        padding='VALID')
                     g_conv3_encoder = leaky_relu(g_conv3_encoder, name='outputs')
-                    g_conv3_encoder = tf.contrib.layers.batch_norm(g_conv3_encoder, is_training=training)
+                    g_conv3_encoder = tf.contrib.layers.batch_norm(g_conv3_encoder, updates_collections=None,
+                                                                   decay=0.99,
+                                                                   scale=True, center=True, is_training=training)
                     g_conv3_encoder = max_pool(g_conv3_encoder, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
                                                padding='SAME')
                     g_conv3_encoder = tf.nn.dropout(g_conv3_encoder, keep_prob=keep_prob)
@@ -154,7 +159,9 @@ class Classifier:
                     g_conv4_encoder = tf.layers.conv2d(g_conv3_encoder, self.layer_sizes[3], [2, 2], strides=(1, 1),
                                                        padding='VALID')
                     g_conv4_encoder = leaky_relu(g_conv4_encoder, name='outputs')
-                    g_conv4_encoder = tf.contrib.layers.batch_norm(g_conv4_encoder, is_training=training)
+                    g_conv4_encoder = tf.contrib.layers.batch_norm(g_conv4_encoder, updates_collections=None,
+                                                                   decay=0.99,
+                                                                   scale=True, center=True, is_training=training)
                     g_conv4_encoder = max_pool(g_conv4_encoder, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
                                                padding='SAME')
                     g_conv4_encoder = tf.nn.dropout(g_conv4_encoder, keep_prob=keep_prob)
