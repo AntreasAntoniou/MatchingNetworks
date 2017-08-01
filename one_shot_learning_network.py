@@ -213,18 +213,16 @@ class MatchingNetwork:
         self.num_samples_per_class = num_samples_per_class
         self.learning_rate = learning_rate
 
-    def rotate_data(self, image):
+    def rotate_data(self, image, k):
         """
         Rotates one image by self.k * 90 degrees
         :param image: Image to rotate
         :return: Rotated Image
         """
-        if self.k is None:
-            self.k = tf.unstack(tf.random_uniform([1], minval=1, maxval=4, dtype=tf.int32, seed=None, name=None))
-        image = tf.image.rot90(image, k=self.k[0])
-        return image
+        rotated_image = tf.image.rot90(image, k=k[0])
+        return rotated_image
 
-    def rotate_batch(self, batch_images):
+    def rotate_batch(self, batch_images, k):
         """
         Rotates a whole image batch
         :param batch_images: A batch of images
@@ -236,20 +234,26 @@ class MatchingNetwork:
             batch_images_unpacked = tf.unstack(batch_images)
             new_images = []
             for image in batch_images_unpacked:
-                rotated_batch = self.rotate_data(image)
+                rotated_batch = self.rotate_data(image, k)
                 new_images.append(rotated_batch)
             new_images = tf.stack(new_images)
             new_images = tf.reshape(new_images, (batch_size, x, y, c))
             return new_images
 
-    def data_augment_batch(self, batch_images):
+    def data_rotate_batch(self, batch_images, k):
         """
         Conditional augmentation on batch sequence for tf graph
         :param batch_images: Batch of images to be augmented
         :return: A rotated batch of images if self.rotate_flag is True and the original batch if it's False
         """
-        images = tf.cond(self.rotate_flag, lambda: self.rotate_batch(batch_images), lambda: batch_images)
+        images = tf.cond(self.rotate_flag, lambda: self.rotate_batch(batch_images, k), lambda: batch_images)
         return images
+
+    def data_augment_batch(self, batch_images, k):
+        r = tf.unstack(tf.random_uniform([1], minval=0, maxval=1, dtype=tf.int32, seed=None, name=None))
+        rotate_boolean = tf.equal(1, r, name="check-rotate-boolean")
+        image = tf.cond(rotate_boolean[0], lambda: self.data_rotate_batch(batch_images, k), lambda: batch_images)
+        return image
 
     def loss(self):
         """
@@ -257,15 +261,16 @@ class MatchingNetwork:
         :return:
         """
         with tf.name_scope("losses"):
+            k = tf.unstack(tf.random_uniform([1], minval=0, maxval=4, dtype=tf.int32, seed=None, name=None))
             self.support_set_labels = tf.one_hot(self.support_set_labels, self.num_classes_per_set)  # one hot encode
             encoded_images = []
 
             for image in tf.unstack(self.support_set_images, axis=1):  #produce embeddings for support set images
-                image = self.data_augment_batch(image)
+                image = self.data_augment_batch(image, k=k)
                 gen_encode = self.g(image_input=image, training=self.is_training, keep_prob=self.keep_prob)
                 encoded_images.append(gen_encode)
 
-            target_image = self.data_augment_batch(self.target_image)  #produce embedding for target images
+            target_image = self.data_augment_batch(self.target_image, k=k)  #produce embedding for target images
             gen_encode = self.g(image_input=target_image, training=self.is_training, keep_prob=self.keep_prob)
 
             encoded_images.append(gen_encode)
@@ -281,7 +286,7 @@ class MatchingNetwork:
             preds = self.classify(similarities,
                                 support_set_y=self.support_set_labels, name='classify', training=self.is_training)
                                 # produce predictions for target probabilities
-            self.k = None
+
             correct_prediction = tf.equal(tf.argmax(preds, 1), tf.cast(self.target_label, tf.int64))
             accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
             crossentropy_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.target_label,
