@@ -100,7 +100,7 @@ class ExperimentBuilder:
                     [self.losses[self.one_shot_omniglot.classify], self.losses[self.one_shot_omniglot.dn]],
                     feed_dict={self.keep_prob: 1.0, self.support_set_images: x_support_set,
                                self.support_set_labels: y_support_set, self.target_image: x_target, self.target_label: y_target,
-                               self.training_phase: False, self.rotate_flag: True})
+                               self.training_phase: False, self.rotate_flag: False})
 
                 iter_out = "val_loss: {}, val_accuracy: {}".format(c_loss_value, acc)
                 pbar.set_description(iter_out)
@@ -131,7 +131,7 @@ class ExperimentBuilder:
                     feed_dict={self.keep_prob: 1.0, self.support_set_images: x_support_set,
                                self.support_set_labels: y_support_set, self.target_image: x_target,
                                self.target_label: y_target,
-                               self.training_phase: False, self.rotate_flag: True})
+                               self.training_phase: False, self.rotate_flag: False})
 
                 iter_out = "test_loss: {}, test_accuracy: {}".format(c_loss_value, acc)
                 pbar.set_description(iter_out)
