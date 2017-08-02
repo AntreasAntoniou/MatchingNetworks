@@ -250,8 +250,8 @@ class MatchingNetwork:
         return images
 
     def data_augment_batch(self, batch_images, k):
-        r = tf.unstack(tf.random_uniform([1], minval=0, maxval=1, dtype=tf.int32, seed=None, name=None))
-        rotate_boolean = tf.equal(1, r, name="check-rotate-boolean")
+        r = tf.unstack(tf.random_uniform([1], minval=0, maxval=2, dtype=tf.int32, seed=None, name=None))
+        rotate_boolean = tf.equal(0, r, name="check-rotate-boolean")
         image = tf.cond(rotate_boolean[0], lambda: self.data_rotate_batch(batch_images, k), lambda: batch_images)
         return image
 
