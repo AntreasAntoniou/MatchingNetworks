@@ -261,7 +261,7 @@ class MatchingNetwork:
         :return:
         """
         with tf.name_scope("losses"):
-            k = tf.unstack(tf.random_uniform([1], minval=0, maxval=4, dtype=tf.int32, seed=None, name=None))
+            k = tf.unstack(tf.random_uniform([1], minval=1, maxval=4, dtype=tf.int32, seed=None, name=None))
             self.support_set_labels = tf.one_hot(self.support_set_labels, self.num_classes_per_set)  # one hot encode
             encoded_images = []
 
