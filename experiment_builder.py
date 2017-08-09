@@ -66,7 +66,7 @@ class ExperimentBuilder:
                     [self.c_error_opt_op, self.losses[self.one_shot_omniglot.classify], self.losses[self.one_shot_omniglot.dn]],
                     feed_dict={self.keep_prob: 1.0, self.support_set_images: x_support_set,
                                self.support_set_labels: y_support_set, self.target_image: x_target, self.target_label: y_target,
-                               self.training_phase: True, self.rotate_flag: True, self.learning_rate: self.current_learning_rate})
+                               self.training_phase: True, self.rotate_flag: False, self.learning_rate: self.current_learning_rate})
 
                 iter_out = "train_loss: {}, train_accuracy: {}".format(c_loss_value, acc)
                 pbar.set_description(iter_out)
