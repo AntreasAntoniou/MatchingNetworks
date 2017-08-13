@@ -125,7 +125,7 @@ class Classifier:
             with tf.variable_scope('conv_layers'):
                 with tf.variable_scope('g_conv1'):
                     g_conv1_encoder = tf.layers.conv2d(image_input, self.layer_sizes[0], [3, 3], strides=(1, 1),
-                                                       padding='VALID')
+                                                       padding='SAME')
                     g_conv1_encoder = leaky_relu(g_conv1_encoder, name='outputs')
                     g_conv1_encoder = tf.contrib.layers.batch_norm(g_conv1_encoder, updates_collections=None, decay=0.99,
                                                                    scale=True, center=True, is_training=training)
@@ -135,7 +135,7 @@ class Classifier:
 
                 with tf.variable_scope('g_conv2'):
                     g_conv2_encoder = tf.layers.conv2d(g_conv1_encoder, self.layer_sizes[1], [3, 3], strides=(1, 1),
-                                                       padding='VALID')
+                                                       padding='SAME')
                     g_conv2_encoder = leaky_relu(g_conv2_encoder, name='outputs')
                     g_conv2_encoder = tf.contrib.layers.batch_norm(g_conv2_encoder, updates_collections=None,
                                                                    decay=0.99,
@@ -146,7 +146,7 @@ class Classifier:
 
                 with tf.variable_scope('g_conv3'):
                     g_conv3_encoder = tf.layers.conv2d(g_conv2_encoder, self.layer_sizes[2], [3, 3], strides=(1, 1),
-                                                       padding='VALID')
+                                                       padding='SAME')
                     g_conv3_encoder = leaky_relu(g_conv3_encoder, name='outputs')
                     g_conv3_encoder = tf.contrib.layers.batch_norm(g_conv3_encoder, updates_collections=None,
                                                                    decay=0.99,
@@ -157,7 +157,7 @@ class Classifier:
 
                 with tf.variable_scope('g_conv4'):
                     g_conv4_encoder = tf.layers.conv2d(g_conv3_encoder, self.layer_sizes[3], [2, 2], strides=(1, 1),
-                                                       padding='VALID')
+                                                       padding='SAME')
                     g_conv4_encoder = leaky_relu(g_conv4_encoder, name='outputs')
                     g_conv4_encoder = tf.contrib.layers.batch_norm(g_conv4_encoder, updates_collections=None,
                                                                    decay=0.99,
