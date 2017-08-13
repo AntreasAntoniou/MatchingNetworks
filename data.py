@@ -17,7 +17,7 @@ class OmniglotNShotDataset():
         shuffle_classes = np.arange(self.x.shape[0])
         np.random.shuffle(shuffle_classes)
         self.x = self.x[shuffle_classes]
-        self.x_train, self.x_test, self.x_val  = self.x[:1200], self.x[1200:1500], self.x[1500:]
+        self.x_train, self.x_test, self.x_val  = self.x[:1200], self.x[1200:1411], self.x[1411:]
         self.normalization()
 
         self.batch_size = batch_size
