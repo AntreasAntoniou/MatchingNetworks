@@ -213,64 +213,20 @@ class MatchingNetwork:
         self.num_samples_per_class = num_samples_per_class
         self.learning_rate = learning_rate
 
-    def rotate_data(self, image, k):
-        """
-        Rotates one image by self.k * 90 degrees
-        :param image: Image to rotate
-        :return: Rotated Image
-        """
-        rotated_image = tf.image.rot90(image, k=k[0])
-        return rotated_image
-
-    def rotate_batch(self, batch_images, k):
-        """
-        Rotates a whole image batch
-        :param batch_images: A batch of images
-        :return: The rotated batch of images
-        """
-        shapes = map(int, list(batch_images.get_shape()))
-        batch_size, x, y, c = shapes
-        with tf.name_scope('augment'):
-            batch_images_unpacked = tf.unstack(batch_images)
-            new_images = []
-            for image in batch_images_unpacked:
-                rotated_batch = self.rotate_data(image, k)
-                new_images.append(rotated_batch)
-            new_images = tf.stack(new_images)
-            new_images = tf.reshape(new_images, (batch_size, x, y, c))
-            return new_images
-
-    def data_rotate_batch(self, batch_images, k):
-        """
-        Conditional augmentation on batch sequence for tf graph
-        :param batch_images: Batch of images to be augmented
-        :return: A rotated batch of images if self.rotate_flag is True and the original batch if it's False
-        """
-        images = tf.cond(self.rotate_flag, lambda: self.rotate_batch(batch_images, k), lambda: batch_images)
-        return images
-
-    def data_augment_batch(self, batch_images, k):
-        r = tf.unstack(tf.random_uniform([1], minval=0, maxval=4, dtype=tf.int32, seed=None, name=None))
-        rotate_boolean = tf.equal(0, r, name="check-rotate-boolean")
-        image = tf.cond(rotate_boolean[0], lambda: self.data_rotate_batch(batch_images, k), lambda: batch_images)
-        return image
-
     def loss(self):
         """
         Builds tf graph for Matchning Networks, produces losses and summary statistics.
         :return:
         """
         with tf.name_scope("losses"):
-            k = tf.unstack(tf.random_uniform([1], minval=1, maxval=4, dtype=tf.int32, seed=None, name=None))
             self.support_set_labels = tf.one_hot(self.support_set_labels, self.num_classes_per_set)  # one hot encode
             encoded_images = []
 
             for image in tf.unstack(self.support_set_images, axis=1):  #produce embeddings for support set images
-                image = self.data_augment_batch(image, k=k)
                 gen_encode = self.g(image_input=image, training=self.is_training, keep_prob=self.keep_prob)
                 encoded_images.append(gen_encode)
 
-            target_image = self.data_augment_batch(self.target_image, k=k)  #produce embedding for target images
+            target_image = self.target_image  #produce embedding for target images
             gen_encode = self.g(image_input=target_image, training=self.is_training, keep_prob=self.keep_prob)
 
             encoded_images.append(gen_encode)
