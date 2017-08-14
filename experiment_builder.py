@@ -61,7 +61,7 @@ class ExperimentBuilder:
         with tqdm.tqdm(total=total_train_batches) as pbar:
 
             for i in range(total_train_batches):  # train epoch
-                x_support_set, y_support_set, x_target, y_target = self.data.get_train_batch()
+                x_support_set, y_support_set, x_target, y_target = self.data.get_train_batch(augment=True)
                 _, c_loss_value, acc = sess.run(
                     [self.c_error_opt_op, self.losses[self.one_shot_omniglot.classify], self.losses[self.one_shot_omniglot.dn]],
                     feed_dict={self.keep_prob: 1.0, self.support_set_images: x_support_set,
@@ -95,7 +95,7 @@ class ExperimentBuilder:
 
         with tqdm.tqdm(total=total_val_batches) as pbar:
             for i in range(total_val_batches):  # validation epoch
-                x_support_set, y_support_set, x_target, y_target = self.data.get_val_batch()
+                x_support_set, y_support_set, x_target, y_target = self.data.get_val_batch(augment=True)
                 c_loss_value, acc = sess.run(
                     [self.losses[self.one_shot_omniglot.classify], self.losses[self.one_shot_omniglot.dn]],
                     feed_dict={self.keep_prob: 1.0, self.support_set_images: x_support_set,
@@ -125,7 +125,7 @@ class ExperimentBuilder:
         total_test_accuracy = 0.
         with tqdm.tqdm(total=total_test_batches) as pbar:
             for i in range(total_test_batches):
-                x_support_set, y_support_set, x_target, y_target = self.data.get_test_batch()
+                x_support_set, y_support_set, x_target, y_target = self.data.get_test_batch(augment=True)
                 c_loss_value, acc = sess.run(
                     [self.losses[self.one_shot_omniglot.classify], self.losses[self.one_shot_omniglot.dn]],
                     feed_dict={self.keep_prob: 1.0, self.support_set_images: x_support_set,
