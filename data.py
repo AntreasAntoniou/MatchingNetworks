@@ -1,8 +1,7 @@
 import numpy as np
-np.random.seed(2191)  # for reproducibility
 
 class OmniglotNShotDataset():
-    def __init__(self, batch_size, classes_per_set=10, samples_per_class=1):
+    def __init__(self, batch_size, classes_per_set=10, samples_per_class=1, seed=2591):
 
         """
         Constructs an N-Shot omniglot Dataset
@@ -12,109 +11,120 @@ class OmniglotNShotDataset():
         e.g. For a 20-way, 1-shot learning task, use classes_per_set=20 and samples_per_class=1
              For a 5-way, 10-shot learning task, use classes_per_set=5 and samples_per_class=10
         """
+        np.random.seed(seed)
         self.x = np.load("data.npy")
-        self.x = np.reshape(self.x, [-1, 20, 28, 28, 1])
-        shuffle_classes = np.arange(self.x.shape[0])
-        np.random.shuffle(shuffle_classes)
-        self.x = self.x[shuffle_classes]
-        self.x_train, self.x_test, self.x_val  = self.x[:1200], self.x[1200:1411], self.x[1411:]
+        self.x = np.reshape(self.x, newshape=(1622, 20, 28, 28, 1))
+        self.x_train, self.x_test, self.x_val = self.x[:1200], self.x[1200:1411], self.x[1411:]
         self.normalization()
-
         self.batch_size = batch_size
         self.n_classes = self.x.shape[0]
         self.classes_per_set = classes_per_set
         self.samples_per_class = samples_per_class
-
+        print("train_shape", self.x_train.shape, "test_shape", self.x_test.shape, "val_shape", self.x_val.shape)
         self.indexes = {"train": 0, "val": 0, "test": 0}
         self.datasets = {"train": self.x_train, "val": self.x_val, "test": self.x_test} #original data cached
-        self.datasets_cache = {"train": self.load_data_cache(self.datasets["train"]),  #current epoch data cached
-                               "val": self.load_data_cache(self.datasets["val"]),
-                               "test": self.load_data_cache(self.datasets["test"])}
 
     def normalization(self):
         """
         Normalizes our data, to have a mean of 0 and sd of 1
         """
-        self.mean = np.mean(self.x_train)
-        self.std = np.std(self.x_train)
+        self.mean = np.mean(list(self.x_train)+list(self.x_val))
+        self.std = np.std(list(self.x_train)+list(self.x_val))
+        # #
+        # self.x_train = (self.x_train - self.mean) / self.std
+        # self.x_val = (self.x_val - self.mean) / self.std
+        # self.x_test = (self.x_test - self.mean) / self.std
         self.max = np.max(self.x_train)
         self.min = np.min(self.x_train)
-        print("train_shape", self.x_train.shape, "test_shape", self.x_test.shape, "val_shape", self.x_val.shape)
-        print("before_normalization", "mean", self.mean, "max", self.max, "min", self.min, "std", self.std)
-        self.x_train = (self.x_train - self.mean) / self.std
-        self.x_val = (self.x_val - self.mean) / self.std
-        self.x_test = (self.x_test - self.mean) / self.std
-        self.mean = np.mean(self.x_train)
-        self.std = np.std(self.x_train)
-        self.max = np.max(self.x_train)
-        self.min = np.min(self.x_train)
-        print("after_normalization", "mean", self.mean, "max", self.max, "min", self.min, "std", self.std)
+        self.x_train = 2.0 * self.x_train - 1.0
+        self.x_val = 2.0 * self.x_val - 1.0
+        self.x_test = 2.0 * self.x_test - 1.0
 
-    def load_data_cache(self, data_pack):
+        #print("before_normalization", "mean", self.mean, "max", self.max, "min", self.min, "std", self.std)
+        print("after_normalization", "mean", np.mean(self.x_train), "max", np.max(self.x_train), "min", np.min(self.x_train), "std", np.std(self.x_train))
+
+
+    def get_new_batch(self, data_pack):
         """
         Collects 1000 batches data for N-shot learning
         :param data_pack: Data pack to use (any one of train, val, test)
         :return: A list with [support_set_x, support_set_y, target_x, target_y] ready to be fed to our networks
         """
-        n_samples = self.samples_per_class * self.classes_per_set
-        data_cache = []
-        for sample in range(1000):
-            support_set_x = np.zeros((self.batch_size, n_samples, 28, 28, 1))
-            support_set_y = np.zeros((self.batch_size, n_samples), dtype=np.int)
-            target_x = np.zeros((self.batch_size, 28, 28, 1))
-            target_y = np.zeros((self.batch_size,), dtype=np.int)
-            for i in range(self.batch_size):
-                ind = 0
-                pinds = np.random.permutation(n_samples)
-                classes = np.random.choice(data_pack.shape[0], self.classes_per_set, False)
-                x_hat_class = np.random.randint(self.classes_per_set)
-                for j, cur_class in enumerate(classes):  # each class
-                    example_inds = np.random.choice(data_pack.shape[1], self.samples_per_class, False)
-                    for eind in example_inds:
-                        support_set_x[i, pinds[ind], :, :, :] = data_pack[cur_class][eind]
-                        support_set_y[i, pinds[ind]] = j
-                        ind += 1
-                    if j == x_hat_class:
-                        target_x[i, :, :, :] = data_pack[cur_class][np.random.choice(data_pack.shape[1])]
-                        target_y[i] = j
+        support_set_x = np.zeros((self.batch_size, self.classes_per_set, self.samples_per_class, data_pack.shape[2],
+                                  data_pack.shape[3], data_pack.shape[4]), dtype=np.float32)
+        support_set_y = np.zeros((self.batch_size, self.classes_per_set, self.samples_per_class), dtype=np.float32)
+        target_x = np.zeros((self.batch_size, data_pack.shape[2], data_pack.shape[3], data_pack.shape[4]),
+                            dtype=np.float32)
+        target_y = np.zeros((self.batch_size,), dtype=np.float32)
+        for i in range(self.batch_size):
+            classes_idx = np.arange(data_pack.shape[0])
+            samples_idx = np.arange(data_pack.shape[1])
+            choose_classes = np.random.choice(classes_idx, size=self.classes_per_set, replace=False)
+            choose_label = np.random.choice(self.classes_per_set, size=1)
+            choose_samples = np.random.choice(samples_idx, size=self.samples_per_class+1, replace=False)
 
-            data_cache.append([support_set_x, support_set_y, target_x, target_y])
-        return data_cache
+            x_temp = data_pack[choose_classes]
+            x_temp = x_temp[:, choose_samples]
+            y_temp = np.arange(self.classes_per_set)
+            support_set_x[i] = x_temp[:, :-1]
+            support_set_y[i] = np.expand_dims(y_temp[:], axis=1)
+            target_x[i] = x_temp[choose_label, -1]
+            target_y[i] = y_temp[choose_label]
 
-    def get_batch(self, dataset_name):
+        return support_set_x, support_set_y, target_x, target_y
+
+    def get_batch(self, dataset_name, augment=False):
         """
         Gets next batch from the dataset with name.
         :param dataset_name: The name of the dataset (one of "train", "val", "test")
         :return:
         """
-        if self.indexes[dataset_name] >= len(self.datasets_cache[dataset_name]):
-            self.indexes[dataset_name] = 0
-            self.datasets_cache[dataset_name] = self.load_data_cache(self.datasets[dataset_name])
-        next_batch = self.datasets_cache[dataset_name][self.indexes[dataset_name]]
-        self.indexes[dataset_name] += 1
-        x_support_set, y_support_set, x_target, y_target = next_batch
+        x_support_set, y_support_set, x_target, y_target = self.get_new_batch(self.datasets[dataset_name])
+        if augment:
+
+            k = np.random.randint(0, 4, size=(self.batch_size, self.classes_per_set))
+            x_augmented_support_set = []
+            x_augmented_target_set = []
+            for b in range(self.batch_size):
+                temp_class_support = []
+
+                for c in range(self.classes_per_set):
+                    x_temp_support_set = self.rotate_batch(x_support_set[b, c], axis=(1, 2), k=k[b, c])
+                    if y_target[b] == y_support_set[b, c, 0]:
+                        x_temp_target = self.rotate_batch(x_target[b], axis=(0, 1), k=k[b, c])
+
+                    temp_class_support.append(x_temp_support_set)
+
+                x_augmented_support_set.append(temp_class_support)
+                x_augmented_target_set.append(x_temp_target)
+            x_support_set = np.array(x_augmented_support_set)
+            x_target = np.array(x_augmented_target_set)
         return x_support_set, y_support_set, x_target, y_target
 
-    def get_train_batch(self):
+    def rotate_batch(self, x_batch, axis, k):
+        x_batch = rotate(x_batch, k*90, reshape=False, axes=axis, mode="nearest")
+        return x_batch
+
+    def get_train_batch(self, augment=False):
 
         """
         Get next training batch
         :return: Next training batch
         """
-        return self.get_batch("train")
+        return self.get_batch("train", augment)
 
-    def get_test_batch(self):
+    def get_test_batch(self, augment=False):
 
         """
         Get next test batch
         :return: Next test_batch
         """
-        return self.get_batch("test")
+        return self.get_batch("test", augment)
 
-    def get_val_batch(self):
+    def get_val_batch(self, augment=False):
 
         """
         Get next val batch
         :return: Next val batch
         """
-        return self.get_batch("val")
+        return self.get_batch("val", augment)
