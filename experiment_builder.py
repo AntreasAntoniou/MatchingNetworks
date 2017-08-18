@@ -14,7 +14,7 @@ class ExperimentBuilder:
         """
         self.data = data
 
-    def build_experiment(self, batch_size, classes_per_set, samples_per_class, channels, fce):
+    def build_experiment(self, batch_size, classes_per_set, samples_per_class, fce):
 
         """
 
@@ -25,10 +25,11 @@ class ExperimentBuilder:
         :param fce: Whether to use full context embeddings or not
         :return: a matching_network object, along with the losses, the training ops and the init op
         """
-        self.support_set_images = tf.placeholder(tf.float32, [batch_size, classes_per_set, samples_per_class, 28, 28,
+        height, width, channels = self.data.x.shape[2], self.data.x.shape[3], self.data.x.shape[4]
+        self.support_set_images = tf.placeholder(tf.float32, [batch_size, classes_per_set, samples_per_class, height, width,
                                                               channels], 'support_set_images')
         self.support_set_labels = tf.placeholder(tf.int32, [batch_size, classes_per_set, samples_per_class], 'support_set_labels')
-        self.target_image = tf.placeholder(tf.float32, [batch_size, 28, 28, channels], 'target_image')
+        self.target_image = tf.placeholder(tf.float32, [batch_size, height, width, channels], 'target_image')
         self.target_label = tf.placeholder(tf.int32, [batch_size], 'target_label')
         self.training_phase = tf.placeholder(tf.bool, name='training-flag')
         self.rotate_flag = tf.placeholder(tf.bool, name='rotate-flag')

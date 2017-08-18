@@ -12,7 +12,6 @@ batch_size = 32
 fce = False
 classes_per_set = 20
 samples_per_class = 1
-channels = 1
 continue_from_epoch = -1  # use -1 to start from scratch
 epochs = 200
 logs_path = "one_shot_outputs/"
@@ -24,7 +23,7 @@ data = dataset.OmniglotNShotDataset(batch_size=batch_size,
 experiment = ExperimentBuilder(data)
 one_shot_omniglot, losses, c_error_opt_op, init = experiment.build_experiment(batch_size,
                                                                                      classes_per_set,
-                                                                                     samples_per_class, channels, fce)
+                                                                                     samples_per_class, fce)
 total_epochs = 300
 total_train_batches = 1000
 total_val_batches = 250

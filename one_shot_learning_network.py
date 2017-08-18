@@ -24,17 +24,33 @@ class BidirectionalLSTM:
         :return: Returns the LSTM outputs, as well as the forward and backward hidden states.
         """
         with tf.name_scope('bid-lstm' + name), tf.variable_scope('bid-lstm', reuse=self.reuse):
-            fw_lstm_cells = [rnn.LSTMCell(num_units=self.layer_sizes[i], activation=tf.nn.tanh)
-                             for i in range(len(self.layer_sizes))]
-            bw_lstm_cells = [rnn.LSTMCell(num_units=self.layer_sizes[i], activation=tf.nn.tanh)
-                             for i in range(len(self.layer_sizes))]
+            with tf.variable_scope("encoder"):
+                fw_lstm_cells_encoder = [rnn.LSTMCell(num_units=self.layer_sizes[i], activation=tf.nn.tanh)
+                                 for i in range(len(self.layer_sizes))]
+                bw_lstm_cells_encoder = [rnn.LSTMCell(num_units=self.layer_sizes[i], activation=tf.nn.tanh)
+                                 for i in range(len(self.layer_sizes))]
 
-            outputs, output_state_fw, output_state_bw = rnn.stack_bidirectional_rnn(
-                fw_lstm_cells,
-                bw_lstm_cells,
-                inputs,
-                dtype=tf.float32
-            )
+
+
+                outputs, output_state_fw, output_state_bw = rnn.stack_bidirectional_rnn(
+                    fw_lstm_cells_encoder,
+                    bw_lstm_cells_encoder,
+                    inputs,
+                    dtype=tf.float32
+                )
+            print("out shape", tf.stack(outputs, axis=0).get_shape().as_list())
+            with tf.variable_scope("decoder"):
+                fw_lstm_cells_decoder = [rnn.LSTMCell(num_units=self.layer_sizes[i], activation=tf.nn.tanh)
+                                         for i in range(len(self.layer_sizes))]
+                bw_lstm_cells_decoder = [rnn.LSTMCell(num_units=self.layer_sizes[i], activation=tf.nn.tanh)
+                                         for i in range(len(self.layer_sizes))]
+                outputs, output_state_fw, output_state_bw = rnn.stack_bidirectional_rnn(
+                    fw_lstm_cells_decoder,
+                    bw_lstm_cells_decoder,
+                    outputs,
+                    dtype=tf.float32
+                )
+
 
         self.reuse = True
         self.variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='bid-lstm')
