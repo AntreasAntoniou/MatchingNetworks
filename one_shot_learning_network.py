@@ -215,13 +215,16 @@ class MatchingNetwork:
 
     def loss(self):
         """
-        Builds tf graph for Matchning Networks, produces losses and summary statistics.
+        Builds tf graph for Matching Networks, produces losses and summary statistics.
         :return:
         """
         with tf.name_scope("losses"):
+            [b, num_classes, spc] = self.support_set_labels.get_shape().as_list()
+            self.support_set_labels = tf.reshape(self.support_set_labels, shape=(b, num_classes * spc))
             self.support_set_labels = tf.one_hot(self.support_set_labels, self.num_classes_per_set)  # one hot encode
             encoded_images = []
-
+            [b, num_classes, spc, h, w, c] = self.support_set_images.get_shape().as_list()
+            self.support_set_images = tf.reshape(self.support_set_images, shape=(b,  num_classes*spc, h, w, c))
             for image in tf.unstack(self.support_set_images, axis=1):  #produce embeddings for support set images
                 gen_encode = self.g(image_input=image, training=self.is_training, keep_prob=self.keep_prob)
                 encoded_images.append(gen_encode)

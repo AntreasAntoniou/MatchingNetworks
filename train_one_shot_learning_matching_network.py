@@ -27,7 +27,7 @@ one_shot_omniglot, losses, c_error_opt_op, init = experiment.build_experiment(ba
                                                                                      samples_per_class, channels, fce)
 total_epochs = 300
 total_train_batches = 1000
-total_val_batches = 100
+total_val_batches = 250
 total_test_batches = 250
 
 save_statistics(experiment_name, ["epoch", "train_c_loss", "train_c_accuracy", "val_loss", "val_accuracy",

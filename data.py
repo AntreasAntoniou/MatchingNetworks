@@ -1,7 +1,7 @@
 import numpy as np
-
+from scipy.ndimage import rotate
 class OmniglotNShotDataset():
-    def __init__(self, batch_size, classes_per_set=10, samples_per_class=1, seed=2591):
+    def __init__(self, batch_size, classes_per_set=10, samples_per_class=1, seed=2591, shuffle_classes=True):
 
         """
         Constructs an N-Shot omniglot Dataset
@@ -14,8 +14,13 @@ class OmniglotNShotDataset():
         np.random.seed(seed)
         self.x = np.load("data.npy")
         self.x = np.reshape(self.x, newshape=(1622, 20, 28, 28, 1))
+        if shuffle_classes:
+            class_ids = np.arange(self.x.shape[0])
+            np.random.shuffle(class_ids)
+            self.x = self.x[class_ids]
         self.x_train, self.x_test, self.x_val = self.x[:1200], self.x[1200:1411], self.x[1411:]
-        self.normalization()
+        self.mean = np.mean(list(self.x_train) + list(self.x_val))
+        self.std = np.std(list(self.x_train) + list(self.x_val))
         self.batch_size = batch_size
         self.n_classes = self.x.shape[0]
         self.classes_per_set = classes_per_set
@@ -24,27 +29,14 @@ class OmniglotNShotDataset():
         self.indexes = {"train": 0, "val": 0, "test": 0}
         self.datasets = {"train": self.x_train, "val": self.x_val, "test": self.x_test} #original data cached
 
-    def normalization(self):
+    def preprocess_batch(self, x_batch):
         """
         Normalizes our data, to have a mean of 0 and sd of 1
         """
-        self.mean = np.mean(list(self.x_train)+list(self.x_val))
-        self.std = np.std(list(self.x_train)+list(self.x_val))
-        # #
-        # self.x_train = (self.x_train - self.mean) / self.std
-        # self.x_val = (self.x_val - self.mean) / self.std
-        # self.x_test = (self.x_test - self.mean) / self.std
-        self.max = np.max(self.x_train)
-        self.min = np.min(self.x_train)
-        self.x_train = 2.0 * self.x_train - 1.0
-        self.x_val = 2.0 * self.x_val - 1.0
-        self.x_test = 2.0 * self.x_test - 1.0
+        x_batch = (x_batch - self.mean) / self.std
 
-        #print("before_normalization", "mean", self.mean, "max", self.max, "min", self.min, "std", self.std)
-        print("after_normalization", "mean", np.mean(self.x_train), "max", np.max(self.x_train), "min", np.min(self.x_train), "std", np.std(self.x_train))
-
-
-    def get_new_batch(self, data_pack):
+        return x_batch
+    def sample_new_batch(self, data_pack):
         """
         Collects 1000 batches data for N-shot learning
         :param data_pack: Data pack to use (any one of train, val, test)
@@ -79,9 +71,8 @@ class OmniglotNShotDataset():
         :param dataset_name: The name of the dataset (one of "train", "val", "test")
         :return:
         """
-        x_support_set, y_support_set, x_target, y_target = self.get_new_batch(self.datasets[dataset_name])
+        x_support_set, y_support_set, x_target, y_target = self.sample_new_batch(self.datasets[dataset_name])
         if augment:
-
             k = np.random.randint(0, 4, size=(self.batch_size, self.classes_per_set))
             x_augmented_support_set = []
             x_augmented_target_set = []
@@ -97,8 +88,12 @@ class OmniglotNShotDataset():
 
                 x_augmented_support_set.append(temp_class_support)
                 x_augmented_target_set.append(x_temp_target)
+
             x_support_set = np.array(x_augmented_support_set)
             x_target = np.array(x_augmented_target_set)
+            x_support_set = self.preprocess_batch(x_support_set)
+            x_target = self.preprocess_batch(x_target)
+
         return x_support_set, y_support_set, x_target, y_target
 
     def rotate_batch(self, x_batch, axis, k):
