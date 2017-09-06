@@ -264,8 +264,9 @@ class MatchingNetwork:
 
             correct_prediction = tf.equal(tf.argmax(preds, 1), tf.cast(self.target_label, tf.int64))
             accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-            crossentropy_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.target_label,
-                                                                                              logits=preds))
+            targets = tf.one_hot(self.target_label, self.num_classes_per_set)
+            crossentropy_loss = tf.reduce_mean(-tf.reduce_sum(targets * tf.log(preds),
+                                                              reduction_indices=[1]))
 
             tf.add_to_collection('crossentropy_losses', crossentropy_loss)
             tf.add_to_collection('accuracy', accuracy)
