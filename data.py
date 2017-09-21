@@ -91,8 +91,8 @@ class OmniglotNShotDataset():
 
             x_support_set = np.array(x_augmented_support_set)
             x_target = np.array(x_augmented_target_set)
-            x_support_set = self.preprocess_batch(x_support_set)
-            x_target = self.preprocess_batch(x_target)
+        x_support_set = self.preprocess_batch(x_support_set)
+        x_target = self.preprocess_batch(x_target)
 
         return x_support_set, y_support_set, x_target, y_target
 
