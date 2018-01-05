@@ -265,8 +265,8 @@ class MatchingNetwork:
             correct_prediction = tf.equal(tf.argmax(preds, 1), tf.cast(self.target_label, tf.int64))
             accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
             targets = tf.one_hot(self.target_label, self.num_classes_per_set)
-            crossentropy_loss = tf.reduce_mean(-tf.reduce_sum(targets * tf.log(preds),
-                                                              reduction_indices=[1]))
+            
+            crossentropy_loss = self.crossentropy_softmax(targets=targets, outputs=preds)
 
             tf.add_to_collection('crossentropy_losses', crossentropy_loss)
             tf.add_to_collection('accuracy', accuracy)
@@ -296,7 +296,10 @@ class MatchingNetwork:
                                             var_list=train_variables)
 
         return c_error_opt_op
-
+    def crossentropy_softmax(self, outputs, targets):
+        normOutputs = outputs - tf.reduce_max(outputs, axis=-1)[:, None]
+        logProb = normOutputs - tf.log(tf.reduce_sum(tf.exp(normOutputs), axis=-1)[:, None])
+        return -tf.reduce_mean(tf.reduce_sum(targets * logProb, axis=1))
     def init_train(self):
         """
         Get all ops, as well as all losses.
