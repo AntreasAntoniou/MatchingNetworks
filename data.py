@@ -28,7 +28,8 @@ class OmniglotNShotDataset():
         print("train_shape", self.x_train.shape, "test_shape", self.x_test.shape, "val_shape", self.x_val.shape)
         self.indexes = {"train": 0, "val": 0, "test": 0}
         self.datasets = {"train": self.x_train, "val": self.x_val, "test": self.x_test} #original data cached
-
+        self.num_batches_since_shuffle = {"train": 0., "val": 0., "test": 0.}
+        
     def preprocess_batch(self, x_batch):
         """
         Normalizes our data, to have a mean of 0 and sd of 1
@@ -71,6 +72,13 @@ class OmniglotNShotDataset():
         :param dataset_name: The name of the dataset (one of "train", "val", "test")
         :return:
         """
+        if self.num_batches_since_shuffle[dataset_name] >= 50:
+            samples_idx = np.arange(self.datasets[dataset_name].shape[1])
+            np.random.shuffle(samples_idx)
+            self.datasets[dataset_name] = self.datasets[dataset_name][:, samples_idx]
+            self.num_batches_since_shuffle[dataset_name] = 0
+        else:
+            self.num_batches_since_shuffle[dataset_name] += 1
         x_support_set, y_support_set, x_target, y_target = self.sample_new_batch(self.datasets[dataset_name])
         if augment:
             k = np.random.randint(0, 4, size=(self.batch_size, self.classes_per_set))
