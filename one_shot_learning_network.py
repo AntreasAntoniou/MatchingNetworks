@@ -1,6 +1,6 @@
 import tensorflow as tf
 import tensorflow.contrib.rnn as rnn
-from tensorflow.python.ops.nn_ops import max_pool
+from tensorflow.python.ops.nn_ops import max_pool, leaky_relu
 
 
 class BidirectionalLSTM:
@@ -26,11 +26,9 @@ class BidirectionalLSTM:
         with tf.name_scope('bid-lstm' + name), tf.variable_scope('bid-lstm', reuse=self.reuse):
             with tf.variable_scope("encoder"):
                 fw_lstm_cells_encoder = [rnn.LSTMCell(num_units=self.layer_sizes[i], activation=tf.nn.tanh)
-                                 for i in range(len(self.layer_sizes))]
+                                         for i in range(len(self.layer_sizes))]
                 bw_lstm_cells_encoder = [rnn.LSTMCell(num_units=self.layer_sizes[i], activation=tf.nn.tanh)
-                                 for i in range(len(self.layer_sizes))]
-
-
+                                         for i in range(len(self.layer_sizes))]
 
                 outputs, output_state_fw, output_state_bw = rnn.stack_bidirectional_rnn(
                     fw_lstm_cells_encoder,
@@ -50,7 +48,6 @@ class BidirectionalLSTM:
                     outputs,
                     dtype=tf.float32
                 )
-
 
         self.reuse = True
         self.variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='bid-lstm')
@@ -111,7 +108,7 @@ class AttentionalClassify:
 
 
 class Classifier:
-    def __init__(self, batch_size, layer_sizes, num_channels=1):
+    def __init__(self, name, batch_size, layer_sizes, num_channels=1):
         """
         Builds a CNN to produce embeddings
         :param batch_size: Batch size for experiment
@@ -119,80 +116,52 @@ class Classifier:
         :param num_channels: Number of channels of images
         """
         self.reuse = False
+        self.name = name
         self.batch_size = batch_size
         self.num_channels = num_channels
         self.layer_sizes = layer_sizes
-        assert len(self.layer_sizes)==4, "layer_sizes should be a list of length 4"
+        assert len(self.layer_sizes) == 4, "layer_sizes should be a list of length 4"
 
-    def __call__(self, image_input, training=False, keep_prob=1.0):
+    def __call__(self, image_input, training=False, dropout_rate=0.0):
         """
         Runs the CNN producing the embeddings and the gradients.
         :param image_input: Image input to produce embeddings for. [batch_size, 28, 28, 1]
         :param training: A flag indicating training or evaluation
-        :param keep_prob: A tf placeholder of type tf.float32 indicating the amount of dropout applied
+        :param dropout_rate: A tf placeholder of type tf.float32 indicating the amount of dropout applied
         :return: Embeddings of size [batch_size, 64]
         """
 
-        def leaky_relu(x, leak=0.2, name=''):
-            return tf.maximum(x, x * leak, name=name)
-
-        with tf.variable_scope('g', reuse=self.reuse):
-
+        with tf.variable_scope(self.name, reuse=self.reuse):
+            outputs = image_input
             with tf.variable_scope('conv_layers'):
-                with tf.variable_scope('g_conv1'):
-                    g_conv1_encoder = tf.layers.conv2d(image_input, self.layer_sizes[0], [3, 3], strides=(1, 1),
+                for idx, num_filters in enumerate(self.layer_sizes):
+                    with tf.variable_scope('g_conv_{}'.format(idx)):
+                        if idx == len(self.layer_sizes) - 1:
+                            outputs = tf.layers.conv2d(outputs, num_filters, [2, 2], strides=(1, 1),
                                                        padding='VALID')
-                    g_conv1_encoder = leaky_relu(g_conv1_encoder, name='outputs')
-                    g_conv1_encoder = tf.contrib.layers.batch_norm(g_conv1_encoder, updates_collections=None, decay=0.99,
-                                                                   scale=True, center=True, is_training=training)
-                    g_conv1_encoder = max_pool(g_conv1_encoder, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
-                                               padding='SAME')
-                    g_conv1_encoder = tf.nn.dropout(g_conv1_encoder, keep_prob=keep_prob)
+                        else:
+                            outputs = tf.layers.conv2d(outputs, num_filters, [3, 3], strides=(1, 1),
+                                                               padding='VALID')
+                        outputs = leaky_relu(outputs)
+                        outputs = tf.contrib.layers.batch_norm(outputs, updates_collections=None,
+                                                                       decay=0.99,
+                                                                       scale=True, center=True,
+                                                                       is_training=training)
+                        outputs = max_pool(outputs, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
+                                                   padding='SAME')
+                        #outputs = tf.layers.dropout(outputs, rate=dropout_rate, training=training)
 
-                with tf.variable_scope('g_conv2'):
-                    g_conv2_encoder = tf.layers.conv2d(g_conv1_encoder, self.layer_sizes[1], [3, 3], strides=(1, 1),
-                                                       padding='VALID')
-                    g_conv2_encoder = leaky_relu(g_conv2_encoder, name='outputs')
-                    g_conv2_encoder = tf.contrib.layers.batch_norm(g_conv2_encoder, updates_collections=None,
-                                                                   decay=0.99,
-                                                                   scale=True, center=True, is_training=training)
-                    g_conv2_encoder = max_pool(g_conv2_encoder, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
-                                               padding='SAME')
-                    g_conv2_encoder = tf.nn.dropout(g_conv2_encoder, keep_prob=keep_prob)
-
-                with tf.variable_scope('g_conv3'):
-                    g_conv3_encoder = tf.layers.conv2d(g_conv2_encoder, self.layer_sizes[2], [3, 3], strides=(1, 1),
-                                                       padding='VALID')
-                    g_conv3_encoder = leaky_relu(g_conv3_encoder, name='outputs')
-                    g_conv3_encoder = tf.contrib.layers.batch_norm(g_conv3_encoder, updates_collections=None,
-                                                                   decay=0.99,
-                                                                   scale=True, center=True, is_training=training)
-                    g_conv3_encoder = max_pool(g_conv3_encoder, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
-                                               padding='SAME')
-                    g_conv3_encoder = tf.nn.dropout(g_conv3_encoder, keep_prob=keep_prob)
-
-                with tf.variable_scope('g_conv4'):
-                    g_conv4_encoder = tf.layers.conv2d(g_conv3_encoder, self.layer_sizes[3], [2, 2], strides=(1, 1),
-                                                       padding='VALID')
-                    g_conv4_encoder = leaky_relu(g_conv4_encoder, name='outputs')
-                    g_conv4_encoder = tf.contrib.layers.batch_norm(g_conv4_encoder, updates_collections=None,
-                                                                   decay=0.99,
-                                                                   scale=True, center=True, is_training=training)
-                    g_conv4_encoder = max_pool(g_conv4_encoder, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
-                                               padding='SAME')
-                    g_conv4_encoder = tf.nn.dropout(g_conv4_encoder, keep_prob=keep_prob)
-
-            g_conv_encoder = g_conv4_encoder
-            g_conv_encoder = tf.contrib.layers.flatten(g_conv_encoder)
+            image_embedding = tf.contrib.layers.flatten(outputs)
 
         self.reuse = True
-        self.variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='g')
-        return g_conv_encoder
+        self.variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.name)
+        return image_embedding
 
 
 class MatchingNetwork:
-    def __init__(self, support_set_images, support_set_labels, target_image, target_label, keep_prob,
-                 batch_size=100, num_channels=1, is_training=False, learning_rate=0.001, rotate_flag=False, fce=False, num_classes_per_set=5,
+    def __init__(self, support_set_images, support_set_labels, target_image, target_label, dropout_rate,
+                 batch_size=100, num_channels=1, is_training=False, learning_rate=0.001, fce=False,
+                 num_classes_per_set=5,
                  num_samples_per_class=1):
 
         """
@@ -201,7 +170,7 @@ class MatchingNetwork:
         :param support_set_labels: A tensor containing the support set labels [batch_size, sequence_size, 1]
         :param target_image: A tensor containing the target image (image to produce label for) [batch_size, 28, 28, 1]
         :param target_label: A tensor containing the target label [batch_size, 1]
-        :param keep_prob: A tf placeholder of type tf.float32 denotes the amount of dropout to be used
+        :param dropout_rate: A tf placeholder of type tf.float32 denotes the amount of dropout to be used
         :param batch_size: The batch size for the experiment
         :param num_channels: Number of channels of the images
         :param is_training: Flag indicating whether we are training or evaluating
@@ -212,7 +181,8 @@ class MatchingNetwork:
         """
         self.batch_size = batch_size
         self.fce = fce
-        self.g = Classifier(self.batch_size, num_channels=num_channels, layer_sizes=[64, 64, 64 ,64])
+        self.classifier = Classifier(name="classifier_net", batch_size=self.batch_size,
+                            num_channels=num_channels, layer_sizes=[64, 64, 64, 64])
         if fce:
             self.lstm = BidirectionalLSTM(layer_sizes=[32], batch_size=self.batch_size)
         self.dn = DistanceNetwork()
@@ -221,10 +191,8 @@ class MatchingNetwork:
         self.support_set_labels = support_set_labels
         self.target_image = target_image
         self.target_label = target_label
-        self.keep_prob = keep_prob
+        self.dropout_rate = dropout_rate
         self.is_training = is_training
-        self.k = None
-        self.rotate_flag = rotate_flag
         self.num_classes_per_set = num_classes_per_set
         self.num_samples_per_class = num_samples_per_class
         self.learning_rate = learning_rate
@@ -235,18 +203,18 @@ class MatchingNetwork:
         :return:
         """
         with tf.name_scope("losses"):
-            [b, num_classes, spc] = self.support_set_labels.get_shape().as_list()
-            self.support_set_labels = tf.reshape(self.support_set_labels, shape=(b, num_classes * spc))
+            [b, num_classes, spc] = self.support_set_labels[0].get_shape().as_list()
+            self.support_set_labels = tf.reshape(self.support_set_labels[0], shape=(b, num_classes * spc))
             self.support_set_labels = tf.one_hot(self.support_set_labels, self.num_classes_per_set)  # one hot encode
             encoded_images = []
-            [b, num_classes, spc, h, w, c] = self.support_set_images.get_shape().as_list()
-            self.support_set_images = tf.reshape(self.support_set_images, shape=(b,  num_classes*spc, h, w, c))
-            for image in tf.unstack(self.support_set_images, axis=1):  #produce embeddings for support set images
-                gen_encode = self.g(image_input=image, training=self.is_training, keep_prob=self.keep_prob)
+            [b, num_classes, spc, h, w, c] = self.support_set_images[0].get_shape().as_list()
+            self.support_set_images = tf.reshape(self.support_set_images[0], shape=(b, num_classes * spc, h, w, c))
+            for image in tf.unstack(self.support_set_images, axis=1):  # produce embeddings for support set images
+                gen_encode = self.classifier(image_input=image, training=self.is_training, dropout_rate=self.dropout_rate)
                 encoded_images.append(gen_encode)
 
-            target_image = self.target_image  #produce embedding for target images
-            gen_encode = self.g(image_input=target_image, training=self.is_training, keep_prob=self.keep_prob)
+            target_image = self.target_image[0]  # produce embedding for target images
+            gen_encode = self.classifier(image_input=target_image, training=self.is_training, dropout_rate=self.dropout_rate)
 
             encoded_images.append(gen_encode)
 
@@ -254,18 +222,18 @@ class MatchingNetwork:
                 encoded_images, output_state_fw, output_state_bw = self.lstm(encoded_images, name="lstm",
                                                                              training=self.is_training)
             outputs = tf.stack(encoded_images)
-            
+
             similarities = self.dn(support_set=outputs[:-1], input_image=outputs[-1], name="distance_calculation",
-                                   training=self.is_training)  #get similarity between support set embeddings and target
+                                   training=self.is_training)  # get similarity between support set embeddings and target
 
             preds = self.classify(similarities,
-                                support_set_y=self.support_set_labels, name='classify', training=self.is_training)
-                                # produce predictions for target probabilities
+                                  support_set_y=self.support_set_labels, name='classify', training=self.is_training)
+            # produce predictions for target probabilities
 
-            correct_prediction = tf.equal(tf.argmax(preds, 1), tf.cast(self.target_label, tf.int64))
+            correct_prediction = tf.equal(tf.argmax(preds, 1), tf.cast(self.target_label[0], tf.int64))
             accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-            targets = tf.one_hot(self.target_label, self.num_classes_per_set)
-            
+            targets = tf.one_hot(self.target_label[0], self.num_classes_per_set)
+
             crossentropy_loss = self.crossentropy_softmax(targets=targets, outputs=preds)
 
             tf.add_to_collection('crossentropy_losses', crossentropy_loss)
@@ -289,17 +257,19 @@ class MatchingNetwork:
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)  # Needed for correct batch norm usage
         with tf.control_dependencies(update_ops):  # Needed for correct batch norm usage
             if self.fce:
-                train_variables = self.lstm.variables + self.g.variables
+                train_variables = self.lstm.variables + self.classifier.variables
             else:
-                train_variables = self.g.variables
+                train_variables = self.classifier.variables
             c_error_opt_op = c_opt.minimize(losses[self.classify],
                                             var_list=train_variables)
 
         return c_error_opt_op
+
     def crossentropy_softmax(self, outputs, targets):
         normOutputs = outputs - tf.reduce_max(outputs, axis=-1)[:, None]
         logProb = normOutputs - tf.log(tf.reduce_sum(tf.exp(normOutputs), axis=-1)[:, None])
         return -tf.reduce_mean(tf.reduce_sum(targets * logProb, axis=1))
+
     def init_train(self):
         """
         Get all ops, as well as all losses.
@@ -308,4 +278,4 @@ class MatchingNetwork:
         losses = self.loss()
         c_error_opt_op = self.train(losses)
         summary = tf.summary.merge_all()
-        return  summary, losses, c_error_opt_op
+        return summary, losses, c_error_opt_op
