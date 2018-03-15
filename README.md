@@ -1,6 +1,17 @@
 # Matching Networks Tensorflow Implementation
-This repo provides code that replicated the results of the Matching
-Networks for One Shot Learning paper on the Omniglot dataset.
+
+## Introduction
+
+This is an implementation of Matching Networks as described in https://arxiv.org/abs/1606.04080.
+The implementation provides data loaders, model builders, model trainers and model savers for the Omniglot dataset. Furthermore the data loader provider can be used on any dataset, of any size, as long as you can provide it in the folder structure outlined below.
+
+## Installation
+
+To use the Matching Networks repository you must first install the project dependencies. This can be done by install miniconda3 from <a href="https://conda.io/miniconda.html">here</a>
+ with python 3 and running:
+
+```pip install -r requirements.txt```
+
 
 ## Getting the data ready
 The code in the [training script](https://github.com/AntreasAntoniou/MatchingNetworks/blob/master/train_one_shot_learning_matching_network.py)
@@ -26,7 +37,7 @@ data = dataset.FolderDatasetLoader(num_of_gpus=num_gpus, batch_size=batch_size, 
                                    index_of_folder_indicating_class=-2, reset_stored_filepaths=False,
                                    num_samples_per_class=samples_per_class, num_classes_per_set=classes_per_set)
 ```
-Will allow one to built a data loader for Matching Networks. The data provider can be used as demonstrated in the [training script](https://github.com/AntreasAntoniou/MatchingNetworks/blob/master/train_one_shot_learning_matching_network.py).
+Will allow one to built a data loader for Matching Networks. The data provider can be used as demonstrated in the [experiment script](https://github.com/AntreasAntoniou/MatchingNetworks/blob/master/experiment_builder.py).
 
 Sampling from the data loader is as simple as:
 ```
