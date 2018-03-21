@@ -31,7 +31,6 @@ experiment = ExperimentBuilder(data)
 one_shot_omniglot, losses, c_error_opt_op, init = experiment.build_experiment(batch_size,
                                                                                      classes_per_set,
                                                                                      samples_per_class, fce)
-total_epochs = 2
 total_train_batches = 1000
 total_val_batches = 1000
 total_test_batches = 1000
@@ -67,8 +66,8 @@ with tf.Session() as sess:
 
     best_val_acc_mean = 0.
     best_val_epoch = 6
-    with tqdm.tqdm(total=total_epochs) as pbar_e:
-        for e in range(0, total_epochs):
+    with tqdm.tqdm(total=epochs) as pbar_e:
+        for e in range(0, epochs):
             total_train_c_loss_mean, total_train_c_loss_std, total_train_accuracy_mean, total_train_accuracy_std =\
                 experiment.run_training_epoch(total_train_batches=total_train_batches,
                                                                                 sess=sess)
