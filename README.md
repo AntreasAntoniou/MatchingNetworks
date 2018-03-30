@@ -8,7 +8,7 @@ The implementation provides data loaders, model builders, model trainers and mod
 ## Installation
 
 To use the Matching Networks repository you must first install the project dependencies. This can be done by install miniconda3 from <a href="https://conda.io/miniconda.html">here</a>
- with python 3 and running:
+ with python 3.6 and running:
 
 ```pip install -r requirements.txt```
 
