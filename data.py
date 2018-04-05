@@ -300,13 +300,13 @@ class MatchingNetworkDatasetParallel(Dataset):
     def set_augmentation(self, augment_images):
         self.augment_images = augment_images
 
-    def switch_set(self, dataset_name):
+    def switch_set(self, dataset_name, seed=100):
         self.current_dataset_name = dataset_name
         if dataset_name=="train":
-            self.update_seed(dataset_name=dataset_name)
+            self.update_seed(dataset_name=dataset_name, seed=seed)
 
-    def update_seed(self, dataset_name):
-        self.init_seed[dataset_name] = self.seed[dataset_name]
+    def update_seed(self, dataset_name, seed=100):
+        self.init_seed[dataset_name] = seed
 
     def __getitem__(self, idx):
         support_set_images, target_set_image, support_set_labels, target_set_label = \
@@ -331,6 +331,7 @@ class MatchingNetworkLoader(object):
         self.batch_size = batch_size
         self.samples_per_iter = samples_per_iter
         self.num_workers = num_workers
+        self.total_train_iters_produced = 0
 
         self.dataset = self.get_dataset(batch_size, reverse_channels, num_of_gpus, image_height, image_width, image_channels,
                  train_val_test_split, num_classes_per_set, num_samples_per_class, seed=seed,
@@ -355,8 +356,10 @@ class MatchingNetworkLoader(object):
             self.dataset.data_length = self.full_data_length
         else:
             self.dataset.data_length["train"] = total_batches * self.dataset.batch_size
-        self.dataset.switch_set(dataset_name="train")
+        self.dataset.switch_set(dataset_name="train",
+                                seed=self.dataset.init_seed["train"] + self.total_train_iters_produced)
         self.dataset.set_augmentation(augment_images=augment_images)
+        self.total_train_iters_produced += self.dataset.data_length["train"]
         for sample_id, sample_batched in enumerate(self.get_dataloader(shuffle=True)):
             preprocess_sample = self.sample_iter_data(sample=sample_batched, num_gpus=self.dataset.num_of_gpus,
                                                       samples_per_iter=self.batches_per_iter,
