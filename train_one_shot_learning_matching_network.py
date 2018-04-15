@@ -21,7 +21,7 @@ experiment_name = "one_shot_learning_embedding_{}_{}".format(samples_per_class, 
 # Experiment builder
 data = dataset.FolderDatasetLoader(num_of_gpus=num_gpus, batch_size=batch_size, image_height=28, image_width=28,
                                    image_channels=1,
-                                   train_val_test_split=(1200/1622, 211/1622, 211/162),
+                                   train_val_test_split=(1200/1622, 211/1622, 211/1622),
                                    samples_per_iter=1, num_workers=4,
                                    data_path="datasets/omniglot_data", name="omniglot_data",
                                    index_of_folder_indicating_class=-2, reset_stored_filepaths=False,
