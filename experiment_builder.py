@@ -15,7 +15,8 @@ class ExperimentBuilder:
         """
         self.data = data
 
-    def build_experiment(self, batch_size, classes_per_set, samples_per_class, fce, num_gpus=1, data_augmentation=True):
+    def build_experiment(self, batch_size, classes_per_set, samples_per_class, fce, args, full_context_unroll_k=5,
+                         num_gpus=1, data_augmentation=True):
 
         """
 
@@ -27,23 +28,29 @@ class ExperimentBuilder:
         :return: a matching_network object, along with the losses, the training ops and the init op
         """
         height, width, channels = self.data.dataset.image_height, self.data.dataset.image_width, \
-                                  self.data.dataset.image_channel #missing
-        self.support_set_images = tf.placeholder(tf.float32, [num_gpus, batch_size, classes_per_set, samples_per_class, height, width,
-                                                              channels], 'support_set_images')
-        self.support_set_labels = tf.placeholder(tf.int32, [num_gpus, batch_size, classes_per_set, samples_per_class], 'support_set_labels')
+                                  self.data.dataset.image_channel  # missing
+        self.support_set_images = tf.placeholder(tf.float32,
+                                                 [num_gpus, batch_size, classes_per_set, samples_per_class, height,
+                                                  width,
+                                                  channels], 'support_set_images')
+        self.support_set_labels = tf.placeholder(tf.int32, [num_gpus, batch_size, classes_per_set, samples_per_class],
+                                                 'support_set_labels')
         self.target_image = tf.placeholder(tf.float32, [num_gpus, batch_size, height, width, channels], 'target_image')
         self.target_label = tf.placeholder(tf.int32, [num_gpus, batch_size], 'target_label')
         self.training_phase = tf.placeholder(tf.bool, name='training-flag')
         self.dropout_rate = tf.placeholder(tf.float32, name='dropout-prob')
         self.current_learning_rate = 1e-03
         self.learning_rate = tf.placeholder(tf.float32, name='learning-rate-set')
+        self.args = args
         self.one_shot_omniglot = MatchingNetwork(batch_size=batch_size, support_set_images=self.support_set_images,
-                                            support_set_labels=self.support_set_labels,
-                                            target_image=self.target_image, target_label=self.target_label,
-                                            dropout_rate=self.dropout_rate, num_channels=channels,
-                                            is_training=self.training_phase, fce=fce,
-                                            num_classes_per_set=classes_per_set,
-                                            num_samples_per_class=samples_per_class, learning_rate=self.learning_rate)
+                                                 support_set_labels=self.support_set_labels,
+                                                 target_image=self.target_image, target_label=self.target_label,
+                                                 dropout_rate=self.dropout_rate, num_channels=channels,
+                                                 is_training=self.training_phase, fce=fce,
+                                                 num_classes_per_set=classes_per_set,
+                                                 num_samples_per_class=samples_per_class,
+                                                 learning_rate=self.learning_rate,
+                                                 full_context_unroll_k=full_context_unroll_k)
         self.data_augmentation = data_augmentation
         summary, self.losses, self.c_error_opt_op = self.one_shot_omniglot.init_train()
         init = tf.global_variables_initializer()
@@ -61,13 +68,15 @@ class ExperimentBuilder:
         total_train_accuracy = []
         with tqdm.tqdm(total=total_train_batches) as pbar:
             for sample_id, train_sample in enumerate(self.data.get_train_batches(total_batches=total_train_batches,
-                                                                            augment_images=self.data_augmentation)):
+                                                                                 augment_images=self.data_augmentation)):
 
                 support_set_images, target_set_image, support_set_labels, target_set_label = train_sample
 
                 _, c_loss_value, acc = sess.run(
-                    [self.c_error_opt_op, self.losses[self.one_shot_omniglot.classify], self.losses[self.one_shot_omniglot.dn]],
-                    feed_dict={self.dropout_rate: 0.0, self.support_set_images: support_set_images[0],
+                    [self.c_error_opt_op, self.losses[self.one_shot_omniglot.classify],
+                     self.losses[self.one_shot_omniglot.dn]],
+                    feed_dict={self.dropout_rate: self.args.dropout_rate_value,
+                               self.support_set_images: support_set_images[0],
                                self.support_set_labels: support_set_labels[0], self.target_image: target_set_image[0],
                                self.target_label: target_set_label[0], self.training_phase: True,
                                self.learning_rate: self.current_learning_rate})
@@ -101,14 +110,14 @@ class ExperimentBuilder:
         total_val_accuracy = []
         with tqdm.tqdm(total=total_val_batches) as pbar:
             for sample_id, val_sample in enumerate(self.data.get_val_batches(total_batches=total_val_batches,
-                                                                                 augment_images=False)):
-
+                                                                             augment_images=False)):
                 support_set_images, target_set_image, support_set_labels, target_set_label = val_sample
 
                 c_loss_value, acc = sess.run(
                     [self.losses[self.one_shot_omniglot.classify],
                      self.losses[self.one_shot_omniglot.dn]],
-                    feed_dict={self.dropout_rate: 0.0, self.support_set_images: support_set_images[0],
+                    feed_dict={self.dropout_rate: self.args.dropout_rate_value,
+                               self.support_set_images: support_set_images[0],
                                self.support_set_labels: support_set_labels[0], self.target_image: target_set_image[0],
                                self.target_label: target_set_label[0], self.training_phase: False,
                                self.learning_rate: self.current_learning_rate})
@@ -138,13 +147,14 @@ class ExperimentBuilder:
         total_test_accuracy = []
         with tqdm.tqdm(total=total_test_batches) as pbar:
             for sample_id, test_sample in enumerate(self.data.get_test_batches(total_batches=total_test_batches,
-                                                                             augment_images=False)):
+                                                                               augment_images=False)):
                 support_set_images, target_set_image, support_set_labels, target_set_label = test_sample
 
                 c_loss_value, acc = sess.run(
                     [self.losses[self.one_shot_omniglot.classify],
                      self.losses[self.one_shot_omniglot.dn]],
-                    feed_dict={self.dropout_rate: 0.0, self.support_set_images: support_set_images[0],
+                    feed_dict={self.dropout_rate: self.args.dropout_rate_value,
+                               self.support_set_images: support_set_images[0],
                                self.support_set_labels: support_set_labels[0], self.target_image: target_set_image[0],
                                self.target_label: target_set_label[0], self.training_phase: False,
                                self.learning_rate: self.current_learning_rate})

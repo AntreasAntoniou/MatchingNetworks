@@ -3,39 +3,34 @@ from experiment_builder import ExperimentBuilder
 import tensorflow.contrib.slim as slim
 import data as dataset
 import tqdm
-from storage import save_statistics, build_experiment_folder
+
+from utils.parser_utils import get_args
+from utils.storage import save_statistics, build_experiment_folder
 
 tf.reset_default_graph()
-
-# Experiment Setup
-batch_size = 32
-fce = False
-classes_per_set = 20
-samples_per_class = 1
-continue_from_epoch = -1  # use -1 to start from scratch
-epochs = 200
-num_gpus = 1
-logs_path = "one_shot_outputs/"
-experiment_name = "one_shot_learning_embedding_{}_{}".format(samples_per_class, classes_per_set)
-
+args = get_args()
 # Experiment builder
-data = dataset.FolderDatasetLoader(num_of_gpus=num_gpus, batch_size=batch_size, image_height=28, image_width=28,
+data = dataset.FolderDatasetLoader(num_of_gpus=1, batch_size=args.batch_size, image_height=28, image_width=28,
                                    image_channels=1,
                                    train_val_test_split=(1200/1622, 211/1622, 211/162),
                                    samples_per_iter=1, num_workers=4,
                                    data_path="datasets/omniglot_data", name="omniglot_data",
                                    index_of_folder_indicating_class=-2, reset_stored_filepaths=False,
-                                   num_samples_per_class=samples_per_class, num_classes_per_set=classes_per_set)
+                                   num_samples_per_class=args.samples_per_class, num_classes_per_set=args.classes_per_set)
 
 experiment = ExperimentBuilder(data)
-one_shot_omniglot, losses, c_error_opt_op, init = experiment.build_experiment(batch_size,
-                                                                                     classes_per_set,
-                                                                                     samples_per_class, fce)
-total_train_batches = 1000
-total_val_batches = 1000
-total_test_batches = 1000
+one_shot_omniglot, losses, c_error_opt_op, init = experiment.build_experiment(args.batch_size,
+                                                                              args.classes_per_set,
+                                                                              args.samples_per_class,
+                                                                              args.use_full_context_embeddings,
+                                                                              full_context_unroll_k=
+                                                                              args.full_context_unroll_k,
+                                                                              args=args)
+total_train_batches = args.total_iter_per_epoch
+total_val_batches = args.total_iter_per_epoch
+total_test_batches = args.total_iter_per_epoch
 
-saved_models_filepath, logs_filepath = build_experiment_folder(experiment_name)
+saved_models_filepath, logs_filepath = build_experiment_folder(args.experiment_title)
 
 
 save_statistics(logs_filepath, ["epoch", "total_train_c_loss_mean", "total_train_c_loss_std",
@@ -49,8 +44,8 @@ with tf.Session() as sess:
     sess.run(init)
     train_saver = tf.train.Saver()
     val_saver = tf.train.Saver()
-    if continue_from_epoch != -1: #load checkpoint if needed
-        checkpoint = "saved_models/{}_{}.ckpt".format(experiment_name, continue_from_epoch)
+    if args.continue_from_epoch != -1: #load checkpoint if needed
+        checkpoint = "saved_models/{}_{}.ckpt".format(args.experiment_title, args.continue_from_epoch)
         variables_to_restore = []
         for var in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES):
             print(var)
@@ -63,11 +58,11 @@ with tf.Session() as sess:
             variables_to_restore,
             ignore_missing_vars=True)
         fine_tune(sess)
-
+    start_epoch = args.continue_from_epoch if args.continue_from_epoch != -1 else 0
     best_val_acc_mean = 0.
     best_val_epoch = 6
-    with tqdm.tqdm(total=epochs) as pbar_e:
-        for e in range(0, epochs):
+    with tqdm.tqdm(total=args.total_epochs) as pbar_e:
+        for e in range(start_epoch, args.total_epochs):
             total_train_c_loss_mean, total_train_c_loss_std, total_train_accuracy_mean, total_train_accuracy_std =\
                 experiment.run_training_epoch(total_train_batches=total_train_batches,
                                                                                 sess=sess)
@@ -85,7 +80,7 @@ with tf.Session() as sess:
                 best_val_acc_mean = total_val_accuracy_mean
                 best_val_epoch = e
 
-                val_save_path = val_saver.save(sess, "{}/best_val_{}_{}.ckpt".format(saved_models_filepath, experiment_name, e))
+                val_save_path = val_saver.save(sess, "{}/best_val_{}_{}.ckpt".format(saved_models_filepath, args.experiment_title, e))
 
                 total_test_c_loss_mean, total_test_c_loss_std, total_test_accuracy_mean, total_test_accuracy_std \
                     = -1, -1, -1, -1
@@ -97,11 +92,11 @@ with tf.Session() as sess:
                              total_test_c_loss_mean, total_test_c_loss_std, total_test_accuracy_mean,
                              total_test_accuracy_std])
 
-            save_path = train_saver.save(sess, "{}/{}_{}.ckpt".format(saved_models_filepath, experiment_name, e))
+            save_path = train_saver.save(sess, "{}/{}_{}.ckpt".format(saved_models_filepath, args.experiment_title, e))
             pbar_e.update(1)
 
         val_saver.restore(sess,
-                          "{}/best_val_{}_{}.ckpt".format(saved_models_filepath, experiment_name, best_val_epoch))
+                          "{}/best_val_{}_{}.ckpt".format(saved_models_filepath, args.experiment_title, best_val_epoch))
         total_test_c_loss_mean, total_test_c_loss_std, total_test_accuracy_mean, total_test_accuracy_std = \
             experiment.run_testing_epoch(total_test_batches=total_test_batches,
                                          sess=sess)
