@@ -68,7 +68,7 @@ experiment by passing the data provider to the ExperimentBuilder class and the s
  it provides the batches in the same way as our data provider, more details can be found in data.py
 
 We've also very recently introduced the Full Context Embeddings version of matching networks properly implemented as
-explained in the paper.
+explained in the paper. Please don't hesitate to ask questions.
 
 ## Acknowledgements
 Special thanks to https://github.com/zergylord for his Matching Networks
