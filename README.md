@@ -54,8 +54,6 @@ python train_one_shot_learning_matching_network.py --batch_size 32 --experiment_
 
 ```
 
-And then run `python train_one_shot_learning_matching_network.py`
-
 ## Features
 The code supports automatic checkpointing as well as statistics saving.
  It uses 1200 classes for training, 211 classes for testing and 211 classes for validation. We save the latest 5 trained models as well as keep track
@@ -68,6 +66,9 @@ The code supports automatic checkpointing as well as statistics saving.
 Our implementation uses the omniglot dataset, but one can easily add a new data provider and then build a new
 experiment by passing the data provider to the ExperimentBuilder class and the system should work with it, as long as
  it provides the batches in the same way as our data provider, more details can be found in data.py
+
+We've also very recently introduced the Full Context Embeddings version of matching networks properly implemented as
+explained in the paper.
 
 ## Acknowledgements
 Special thanks to https://github.com/zergylord for his Matching Networks
