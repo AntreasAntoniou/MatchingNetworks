@@ -16,7 +16,8 @@ data = dataset.FolderDatasetLoader(num_of_gpus=1, batch_size=args.batch_size, im
                                    samples_per_iter=1, num_workers=4,
                                    data_path="datasets/omniglot_data", name="omniglot_data",
                                    index_of_folder_indicating_class=-2, reset_stored_filepaths=False,
-                                   num_samples_per_class=args.samples_per_class, num_classes_per_set=args.classes_per_set)
+                                   num_samples_per_class=args.samples_per_class,
+                                   num_classes_per_set=args.classes_per_set, label_as_int=True)
 
 experiment = ExperimentBuilder(data)
 one_shot_omniglot, losses, c_error_opt_op, init = experiment.build_experiment(args.batch_size,

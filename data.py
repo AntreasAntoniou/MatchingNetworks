@@ -443,14 +443,14 @@ class FolderDatasetLoader(MatchingNetworkLoader):
     def __init__(self, name, batch_size, image_height, image_width, image_channels, data_path, train_val_test_split,
                  num_of_gpus=1, samples_per_iter=1, num_workers=4, index_of_folder_indicating_class=-1,
                  reset_stored_filepaths=False, num_samples_per_class=1, num_classes_per_set=20, reverse_channels=False,
-                 seed=100):
+                 seed=100, label_as_int=False):
 
         self.name = name
         self.index_of_folder_indicating_class = index_of_folder_indicating_class
         self.reset_stored_filepaths = reset_stored_filepaths
         super(FolderDatasetLoader, self).__init__(name, num_of_gpus, batch_size, image_height, image_width, image_channels, num_classes_per_set, data_path,
                  num_samples_per_class, train_val_test_split,
-                 samples_per_iter, num_workers, reverse_channels, seed)
+                 samples_per_iter, num_workers, reverse_channels, seed, labels_as_int=label_as_int)
 
     def get_dataset(self, batch_size, reverse_channels, num_of_gpus, image_height, image_width, image_channels,
                  train_val_test_split, num_classes_per_set, num_samples_per_class, seed,
