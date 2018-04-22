@@ -47,20 +47,11 @@ for sample_id, train_sample in enumerate(self.data.get_train_batches(total_batch
 The data provider uses parallelization as well as batch sampling while tensorflow is training a step, such that there is minimal waiting time between loading a batch and passing it to tensorflow.
 
 ## Training a model
-To train a model simply modify the experiment parameters in
-the [train_one_shot_learning_matching_network.py](https://github.com/AntreasAntoniou/MatchingNetworks/blob/master/train_one_shot_learning_matching_network.py)
- to match your requirements, for a one shot, 20-way experiment leave
- the parameters to default, for a 5-way one shot learning modify
+To train a model simply use arguments on the training script, for example to do a 20 way 1 shot experiment on omniglot without full context embeddings run:
 
 ```
-classes_per_set = 20
-samples_per_class = 1
-```
-to 
+python train_one_shot_learning_matching_network.py --batch_size 32 --experiment_title omniglot_20_1_matching_network --total_epochs 200 --full_context_unroll_k 5 --classes_per_set 20 --samples_per_class 1 --use_full_context_embeddings False --use_mean_per_class_embeddings False --dropout_rate_value 0.0
 
-```
-classes_per_set = 5
-samples_per_class = 1
 ```
 
 And then run `python train_one_shot_learning_matching_network.py`
