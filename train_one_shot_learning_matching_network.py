@@ -12,7 +12,7 @@ args = get_args()
 # Experiment builder
 data = dataset.FolderDatasetLoader(num_of_gpus=1, batch_size=args.batch_size, image_height=28, image_width=28,
                                    image_channels=1,
-                                   train_val_test_split=(1200/1622, 211/1622, 211/162),
+                                   train_val_test_split=(1200/1622, 211/1622, 211/1622),
                                    samples_per_iter=1, num_workers=4,
                                    data_path="datasets/omniglot_data", name="omniglot_data",
                                    index_of_folder_indicating_class=-2, reset_stored_filepaths=False,
