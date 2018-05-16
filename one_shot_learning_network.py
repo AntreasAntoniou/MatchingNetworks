@@ -247,14 +247,12 @@ class MatchingNetwork:
             g_encoded_images = []
 
             [b, num_classes, spc, h, w, c] = self.support_set_images[0].get_shape().as_list()
-            self.support_set_images = tf.reshape(self.support_set_images[0], shape=(b * num_classes * spc, h, w, c))
+            self.support_set_images = tf.reshape(self.support_set_images[0], shape=(b, num_classes * spc, h, w, c))
 
-            support_set_cnn_embed = self.classifier(image_input=self.support_set_images, training=self.is_training,
-                                                    dropout_rate=self.dropout_rate)
-            self.support_set_images = tf.reshape(self.support_set_images, shape=(b, num_classes * spc, h, w, c))
-            support_set_cnn_embed = tf.reshape(support_set_cnn_embed, shape=(b, num_classes * spc, -1))
-            print(support_set_cnn_embed.get_shape().as_list())
-            g_encoded_images = tf.unstack(support_set_cnn_embed, axis=1)  # produce embeddings for support set images
+            for image in tf.unstack(self.support_set_images, axis=1):  # produce embeddings for support set images
+                support_set_cnn_embed = self.classifier(image_input=image, training=self.is_training,
+                                                        dropout_rate=self.dropout_rate)
+                g_encoded_images.append(support_set_cnn_embed)
 
             if self.average_per_class_embeddings:
                 g_encoded_images = tf.stack(g_encoded_images, axis=1)
