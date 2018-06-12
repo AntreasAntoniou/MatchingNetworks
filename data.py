@@ -423,7 +423,7 @@ class FolderMatchingNetworkDatasetParallel(MatchingNetworkDatasetParallel):
 
         self.data_path = os.path.abspath(data_path)
         self.dataset_name = name
-        self.index_of_folder_indicating_class = index_of_folder_indicating_class
+        self.indeces_of_folders_indicating_class_list = index_of_folder_indicating_class
 
         super(FolderMatchingNetworkDatasetParallel, self).__init__(
             batch_size=batch_size, reverse_channels=reverse_channels,
@@ -434,14 +434,15 @@ class FolderMatchingNetworkDatasetParallel(MatchingNetworkDatasetParallel):
             labels_as_int=labels_as_int)
 
     def get_label_from_path(self, filepath):
-        label = filepath.split("/")[self.index_of_folder_indicating_class]
+        label_bits = filepath.split("/")
+        label = "_".join([label_bits[idx] for idx in self.indeces_of_folders_indicating_class_list])
         if self.labels_as_int:
             label = int(label)
         return label
 
 class FolderDatasetLoader(MatchingNetworkLoader):
     def __init__(self, name, batch_size, image_height, image_width, image_channels, data_path, train_val_test_split,
-                 num_of_gpus=1, samples_per_iter=1, num_workers=4, index_of_folder_indicating_class=-1,
+                 num_of_gpus=1, samples_per_iter=1, num_workers=4, index_of_folder_indicating_class=[-2, -3],
                  reset_stored_filepaths=False, num_samples_per_class=1, num_classes_per_set=20, reverse_channels=False,
                  seed=100, label_as_int=False):
 
