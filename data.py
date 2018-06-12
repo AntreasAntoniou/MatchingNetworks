@@ -419,14 +419,14 @@ class MatchingNetworkLoader(object):
 class FolderMatchingNetworkDatasetParallel(MatchingNetworkDatasetParallel):
     def __init__(self, name, num_of_gpus, batch_size, image_height, image_width, image_channels,
                  train_val_test_split, data_path, index_of_folder_indicating_class, reset_stored_filepaths,
-                 num_samples_per_class, num_classes_per_set, labels_as_int):
+                 num_samples_per_class, num_classes_per_set, labels_as_int, reverse_channels):
 
         self.data_path = os.path.abspath(data_path)
         self.dataset_name = name
         self.index_of_folder_indicating_class = index_of_folder_indicating_class
 
         super(FolderMatchingNetworkDatasetParallel, self).__init__(
-            batch_size=batch_size, reverse_channels=True,
+            batch_size=batch_size, reverse_channels=reverse_channels,
             num_of_gpus=num_of_gpus, image_height=image_height,
             image_width=image_width, image_channels=image_channels,
             train_val_test_split=train_val_test_split, reset_stored_filepaths=reset_stored_filepaths,
@@ -462,4 +462,5 @@ class FolderDatasetLoader(MatchingNetworkLoader):
                                               index_of_folder_indicating_class=self.index_of_folder_indicating_class,
                                               reset_stored_filepaths=self.reset_stored_filepaths,
                                               num_samples_per_class=num_samples_per_class,
-                                              num_classes_per_set=num_classes_per_set, labels_as_int=labels_as_int)
+                                              num_classes_per_set=num_classes_per_set, labels_as_int=labels_as_int,
+                                              reverse_channels=reverse_channels)
