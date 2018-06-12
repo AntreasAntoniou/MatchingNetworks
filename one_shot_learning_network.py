@@ -71,13 +71,15 @@ class f_embedding_bidirectionalLSTM:
         with tf.variable_scope(self.name, reuse=self.reuse):
             fw_lstm_cells_encoder = rnn.LSTMCell(num_units=self.layer_size, activation=tf.nn.tanh)
             attentional_softmax = tf.ones(shape=(b, k)) * (1.0/k)
-            h = tf.zeros(shape=(b, h_g_dim)) + target_set_embeddings
-            h = (h, h)
+            h = tf.zeros(shape=(b, h_g_dim))
+            c_h = (h, h)
+            c_h = (c_h[0], c_h[1] + target_set_embeddings)
             for i in range(K):
                 attentional_softmax = tf.expand_dims(attentional_softmax, axis=2)
                 attented_features = support_set_embeddings * attentional_softmax
                 attented_features_summed = tf.reduce_sum(attented_features, axis=1)
-                x, h = fw_lstm_cells_encoder(inputs=attented_features_summed, state=h)
+                c_h = (c_h[0], c_h[1] + attented_features_summed)
+                x, h_c = fw_lstm_cells_encoder(inputs=target_set_embeddings, state=c_h)
                 attentional_softmax = tf.layers.dense(x, units=k, activation=tf.nn.softmax, reuse=self.reuse)
                 self.reuse = True
 
