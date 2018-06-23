@@ -78,4 +78,3 @@ Special thanks to https://github.com/zergylord for his Matching Networks
 Additional thanks to my colleagues https://github.com/gngdb,
  https://github.com/ZackHodari and https://github.com/artur-bekasov
   for reviewing my code and providing pointers.
-# FewShotExperiments
