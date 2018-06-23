@@ -296,12 +296,6 @@ class MatchingNetworkDatasetParallel(Dataset):
             target_set_image = augment_image(image=target_set_image, k=k * 90, channels=self.image_channel)
         target_set_label = int(class_to_episode_label[target_class])
 
-        # ncs, spc, h, w, c = support_set_images.shape
-        # h, w, c = target_set_image.shape
-
-        support_set_images = np.transpose(support_set_images, [0, 1, 4, 2, 3])
-        target_set_image = np.transpose(target_set_image, [2, 0, 1])
-
         return support_set_images, target_set_image, support_set_labels, target_set_label
 
     def __len__(self):

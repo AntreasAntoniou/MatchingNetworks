@@ -1,64 +1,203 @@
-from copy import deepcopy
-
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
-import torch.backends.cudnn as cudnn
-import torchvision
-import torchvision.transforms as transforms
-import os
-import sys
-import time
-import argparse
-import datetime
-from neural_network_architectures import CNNNetwork, VGGLeakyReLULayerNormNetwork
-from torch.autograd import Variable
-import numpy as np
+import tensorflow as tf
+import tensorflow.contrib.rnn as rnn
+from tensorflow.python.ops.nn_ops import max_pool, leaky_relu
 
 
+class g_embedding_bidirectionalLSTM:
+    def __init__(self, name, layer_sizes, batch_size):
+        """
+        Initializes a multi layer bidirectional LSTM
+        :param layer_sizes: A list containing the neuron numbers per layer e.g. [100, 100, 100] returns a 3 layer, 100
+                                                                                                        neuron bid-LSTM
+        :param batch_size: The experiments batch size
+        """
+        self.reuse = False
+        self.batch_size = batch_size
+        self.layer_sizes = layer_sizes
+        self.name = name
 
-# def calculate_cosine_distance(support_set_embeddings, target_set_embedding):
-#     #print("support_set_embedded vectors", support_set_embeddings.shape)
-#     b, ncs_spc, f_s = support_set_embeddings.shape
-#     b, f_t = target_set_embedding.shape
-#
-#     support_set_embeddings = support_set_embeddings.view(b * ncs_spc, f_s)
-#     target_set_embedding = target_set_embedding.view(b, 1, f_t).repeat([1, ncs_spc, 1]).view(b * ncs_spc, f_t)
-#     cosine_distance = F.cosine_embedding_loss(support_set_embeddings, target_set_embedding, dim=1)
-#     cosine_distance = cosine_distance.view(b, ncs_spc)
-#     return cosine_distance
+    def __call__(self, inputs, training=False):
+        """
+        Runs the bidirectional LSTM, produces outputs and saves both forward and backward states as well as gradients.
+        :param inputs: The inputs should be a list of shape [sequence_length, batch_size, 64]
+        :param name: Name to give to the tensorflow op
+        :param training: Flag that indicates if this is a training or evaluation stage
+        :return: Returns the LSTM outputs, as well as the forward and backward hidden states.
+        """
+        with tf.variable_scope(self.name, reuse=self.reuse):
+            with tf.variable_scope("encoder"):
 
-def calculate_cosine_distance(support_set_embeddings, target_set_embedding):
-    eps = 1e-10
-    similarities = []
-    #print(support_set_embeddings.shape)
-    support_set_embeddings = support_set_embeddings.transpose(0, 1)
-    for support_image in support_set_embeddings:
-        sum_support = torch.sum(torch.pow(support_image, 2), 1)
-        support_magnitude = sum_support.clamp(eps, float("inf")).rsqrt()
-        dot_product = target_set_embedding.unsqueeze(1).bmm(support_image.unsqueeze(2)).squeeze()
-        cosine_similarity = dot_product * support_magnitude
-        similarities.append(cosine_similarity)
-    similarities = torch.stack(similarities)
-    similarities = similarities.transpose(0, 1)
-    return similarities
+                fw_lstm_cells_encoder = [rnn.LSTMCell(num_units=self.layer_sizes[i], activation=tf.nn.tanh)
+                                         for i in range(len(self.layer_sizes))]
+                bw_lstm_cells_encoder = [rnn.LSTMCell(num_units=self.layer_sizes[i], activation=tf.nn.tanh)
+                                         for i in range(len(self.layer_sizes))]
 
-# def cosine_distance_to_preds(similarity_matrix, y_support_set):
-#     b, ncs_spc_0, num_classes = y_support_set.shape
-#     b, ncs_spc_1 = similarity_matrix.shape
-#     similarity_matrix = similarity_matrix.view(b, ncs_spc_0, 1)
-#     preds = similarity_matrix * y_support_set.float() #b, ncs, spc, num_classes
-#     preds = preds.sum(1)
-#     return preds
+                outputs, output_state_fw, output_state_bw = rnn.stack_bidirectional_rnn(
+                    fw_lstm_cells_encoder,
+                    bw_lstm_cells_encoder,
+                    inputs,
+                    dtype=tf.float32
+                )
 
-def cosine_distance_to_preds(similarity_matrix, y_support_set):
-    y_support_set = y_support_set.float()
-    preds = similarity_matrix.unsqueeze(1).bmm(y_support_set).squeeze()
-    return preds
+            print("g out shape", tf.stack(outputs, axis=1).get_shape().as_list())
 
-class MatchingNetwork(nn.Module):
-    def __init__(self, im_shape, args, use_cuda):
+        self.reuse = True
+        self.variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.name)
+        return outputs
+
+class f_embedding_bidirectionalLSTM:
+    def __init__(self, name, layer_size, batch_size):
+        """
+        Initializes a multi layer bidirectional LSTM
+        :param layer_sizes: A list containing the neuron numbers per layer e.g. [100, 100, 100] returns a 3 layer, 100
+                                                                                                        neuron bid-LSTM
+        :param batch_size: The experiments batch size
+        """
+        self.reuse = False
+        self.batch_size = batch_size
+        self.layer_size = layer_size
+        self.name = name
+
+    def __call__(self, support_set_embeddings, target_set_embeddings, K, training=False):
+        """
+        Runs the bidirectional LSTM, produces outputs and saves both forward and backward states as well as gradients.
+        :param inputs: The inputs should be a list of shape [sequence_length, batch_size, 64]
+        :param name: Name to give to the tensorflow op
+        :param training: Flag that indicates if this is a training or evaluation stage
+        :return: Returns the LSTM outputs, as well as the forward and backward hidden states.
+        """
+        b, k, h_g_dim = support_set_embeddings.get_shape().as_list()
+        b, h_f_dim = target_set_embeddings.get_shape().as_list()
+        with tf.variable_scope(self.name, reuse=self.reuse):
+            fw_lstm_cells_encoder = rnn.LSTMCell(num_units=self.layer_size, activation=tf.nn.tanh)
+            attentional_softmax = tf.ones(shape=(b, k)) * (1.0/k)
+            h = tf.zeros(shape=(b, h_g_dim))
+            c_h = (h, h)
+            c_h = (c_h[0], c_h[1] + target_set_embeddings)
+            for i in range(K):
+                attentional_softmax = tf.expand_dims(attentional_softmax, axis=2)
+                attented_features = support_set_embeddings * attentional_softmax
+                attented_features_summed = tf.reduce_sum(attented_features, axis=1)
+                c_h = (c_h[0], c_h[1] + attented_features_summed)
+                x, h_c = fw_lstm_cells_encoder(inputs=target_set_embeddings, state=c_h)
+                attentional_softmax = tf.layers.dense(x, units=k, activation=tf.nn.softmax, reuse=self.reuse)
+                self.reuse = True
+
+        outputs = x
+        print("out shape", tf.stack(outputs, axis=0).get_shape().as_list())
+        self.reuse = True
+        self.variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.name)
+        print(self.variables)
+        return outputs
+
+
+class DistanceNetwork:
+    def __init__(self):
+        self.reuse = False
+
+    def __call__(self, support_set, input_image, name, training=False):
+        """
+        This module calculates the cosine distance between each of the support set embeddings and the target
+        image embeddings.
+        :param support_set: The embeddings of the support set images, tensor of shape [sequence_length, batch_size, 64]
+        :param input_image: The embedding of the target image, tensor of shape [batch_size, 64]
+        :param name: Name of the op to appear on the graph
+        :param training: Flag indicating training or evaluation (True/False)
+        :return: A tensor with cosine similarities of shape [batch_size, sequence_length, 1]
+        """
+        with tf.name_scope('distance-module' + name), tf.variable_scope('distance-module', reuse=self.reuse):
+            eps = 1e-10
+            similarities = []
+            for support_image in tf.unstack(support_set, axis=0):
+                sum_support = tf.reduce_sum(tf.square(support_image), 1, keep_dims=True)
+                support_magnitude = tf.rsqrt(tf.clip_by_value(sum_support, eps, float("inf")))
+                dot_product = tf.matmul(tf.expand_dims(input_image, 1), tf.expand_dims(support_image, 2))
+                dot_product = tf.squeeze(dot_product, [1, ])
+                cosine_similarity = dot_product * support_magnitude
+                similarities.append(cosine_similarity)
+
+        similarities = tf.concat(axis=1, values=similarities)
+        self.variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='distance-module')
+
+        return similarities
+
+
+class AttentionalClassify:
+    def __init__(self):
+        self.reuse = False
+
+    def __call__(self, similarities, support_set_y, name, training=False):
+        """
+        Produces pdfs over the support set classes for the target set image.
+        :param similarities: A tensor with cosine similarities of size [sequence_length, batch_size, 1]
+        :param support_set_y: A tensor with the one hot vectors of the targets for each support set image
+                                                                            [sequence_length,  batch_size, num_classes]
+        :param name: The name of the op to appear on tf graph
+        :param training: Flag indicating training or evaluation stage (True/False)
+        :return: Softmax pdf
+        """
+        with tf.name_scope('attentional-classification' + name), tf.variable_scope('attentional-classification',
+                                                                                   reuse=self.reuse):
+            preds = tf.squeeze(tf.matmul(tf.expand_dims(similarities, 1), support_set_y))
+        self.variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='attentional-classification')
+        return preds
+
+
+class Classifier:
+    def __init__(self, name, batch_size, layer_sizes, num_channels=1):
+        """
+        Builds a CNN to produce embeddings
+        :param batch_size: Batch size for experiment
+        :param layer_sizes: A list of length 4 containing the layer sizes
+        :param num_channels: Number of channels of images
+        """
+        self.reuse = False
+        self.name = name
+        self.batch_size = batch_size
+        self.num_channels = num_channels
+        self.layer_sizes = layer_sizes
+        assert len(self.layer_sizes) == 4, "layer_sizes should be a list of length 4"
+
+    def __call__(self, image_input, training=False, dropout_rate=0.0):
+        """
+        Runs the CNN producing the embeddings and the gradients.
+        :param image_input: Image input to produce embeddings for. [batch_size, 28, 28, 1]
+        :param training: A flag indicating training or evaluation
+        :param dropout_rate: A tf placeholder of type tf.float32 indicating the amount of dropout applied
+        :return: Embeddings of size [batch_size, 64]
+        """
+        with tf.variable_scope(self.name, reuse=self.reuse):
+            outputs = image_input
+            with tf.variable_scope('conv_layers'):
+                for idx, num_filters in enumerate(self.layer_sizes):
+                    with tf.variable_scope('g_conv_{}'.format(idx)):
+                        if idx == len(self.layer_sizes) - 1:
+                            outputs = tf.layers.conv2d(outputs, num_filters, [2, 2], strides=(1, 1),
+                                                       padding='VALID')
+                        else:
+                            outputs = tf.layers.conv2d(outputs, num_filters, [3, 3], strides=(1, 1),
+                                                               padding='VALID')
+                        outputs = leaky_relu(outputs)
+                        outputs = tf.contrib.layers.batch_norm(outputs, updates_collections=None,
+                                                                       decay=0.99,
+                                                                       scale=True, center=True,
+                                                                       is_training=training)
+                        outputs = max_pool(outputs, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
+                                                   padding='SAME')
+                        #outputs = tf.layers.dropout(outputs, rate=dropout_rate, training=training)
+
+            image_embedding = tf.contrib.layers.flatten(outputs)
+
+        self.reuse = True
+        self.variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.name)
+        return image_embedding
+
+
+class MatchingNetwork:
+    def __init__(self, support_set_images, support_set_labels, target_image, target_label, dropout_rate,
+                 batch_size=100, num_channels=1, is_training=False, learning_rate=0.001, fce=False,
+                 full_context_unroll_k=5, num_classes_per_set=5, num_samples_per_class=1,
+                 average_per_class_embeddings=False):
 
         """
         Builds a matching network, the training and evaluation ops as well as data augmentation routines.
@@ -75,300 +214,121 @@ class MatchingNetwork(nn.Module):
         :param num_classes_per_set: Integer indicating the number of classes per set
         :param num_samples_per_class: Integer indicating the number of samples per class
         """
-        super(MatchingNetwork, self).__init__()
-        self.batch_size = args.batch_size
-        self.fce = args.use_full_context_embeddings
-        self.use_cuda = use_cuda
-        self.number_of_steps_per_iter = args.number_of_steps_per_iter
-        if args.architecture_name == "VGG_batch_norm_net":
-            self.classifier = CNNNetwork(im_shape=im_shape, num_output_classes=args.num_classes_per_set,
-                                         args=args)
-        elif args.architecture_name == "VGG_layer_norm_net":
-            self.classifier = VGGLeakyReLULayerNormNetwork(im_shape=im_shape,
-                                                           num_output_classes=args.num_classes_per_set,
-                                                           args=args)
+        self.batch_size = batch_size
+        self.fce = fce
+        self.classifier = Classifier(name="classifier_net", batch_size=self.batch_size,
+                            num_channels=num_channels, layer_sizes=[64, 64, 64, 64])
+        if fce:
+            self.g_lstm = g_embedding_bidirectionalLSTM(name="g_lstm", layer_sizes=[32], batch_size=self.batch_size)
+            self.f_lstm = f_embedding_bidirectionalLSTM(name="f_attlstm", layer_size=64, batch_size=self.batch_size)
 
-        self.task_learning_rate = args.task_learning_rate
-        task_name_params = self.generator_to_dict(self.classifier.named_parameters())
-        print("task params")
-        for key, value in task_name_params.items():
-            print(key, value.shape)
+        self.dn = DistanceNetwork()
+        self.classify = AttentionalClassify()
+        self.full_context_K = full_context_unroll_k
+        self.support_set_images = support_set_images
+        self.support_set_labels = support_set_labels
+        self.average_per_class_embeddings = average_per_class_embeddings
+        self.target_image = target_image
+        self.target_label = target_label
+        self.dropout_rate = dropout_rate
+        self.is_training = is_training
+        self.num_classes_per_set = num_classes_per_set
+        self.num_samples_per_class = num_samples_per_class
+        self.learning_rate = learning_rate
 
-    def generator_to_dict(self, params):
-        param_dict = dict()
-
-        for name, param in params:
-            if param.requires_grad:
-                param_dict[name] = torch.zeros(param.shape).cuda() + param.cuda()
-                #print(name, param.requires_grad)
-                #print(name, param.shape)
-
-        return param_dict
-
-    def forward(self, data_batch):
+    def loss(self):
         """
         Builds tf graph for Matching Networks, produces losses and summary statistics.
         :return:
         """
-        x_support_set, x_target_set, y_support_set, y_target_set = data_batch
+        with tf.name_scope("losses"):
+            [b, num_classes, spc] = self.support_set_labels[0].get_shape().as_list()
+            self.support_set_labels = tf.reshape(self.support_set_labels[0], shape=(b, num_classes * spc))
+            self.support_set_labels = tf.one_hot(self.support_set_labels, self.num_classes_per_set)  # one hot encode
 
-        [b, ncs, spc] = y_support_set.shape
+            g_encoded_images = []
 
-        self.num_classes_per_set = ncs
-        y_support_set = y_support_set.view(b, ncs * spc, 1)
+            [b, num_classes, spc, h, w, c] = self.support_set_images[0].get_shape().as_list()
+            self.support_set_images = tf.reshape(self.support_set_images[0], shape=(b, num_classes * spc, h, w, c))
 
-        [b, num_classes, spc, h, w, c] = x_support_set.shape
-        num_tasks = b
-        x_support_set = x_support_set.view(size=(b, ncs * spc, h, w, c))
-        losses = []
-        accuracies = []
-        diff = []
-        diff_acc = []
-        for task_id, (x_support_set_task, y_support_set_task, x_target_set_task , y_target_set_task) in \
-                                                                                   enumerate(zip(x_support_set,
-                                                                                                 y_support_set,
-                                                                                                 x_target_set,
-                                                                                                 y_target_set)):
-            # produce embeddings for support set images
-            names_weights_copy = self.generator_to_dict(self.classifier.named_parameters())
-            c, h, w = x_target_set_task.shape
-            y_support_set_task = y_support_set_task.view(-1)
-            x_target_set_task = x_target_set_task.view(-1, c, h, w)
-            y_target_set_task = y_target_set_task.view(-1)
+            for image in tf.unstack(self.support_set_images, axis=1):  # produce embeddings for support set images
+                support_set_cnn_embed = self.classifier(image_input=image, training=self.is_training,
+                                                        dropout_rate=self.dropout_rate)
+                g_encoded_images.append(support_set_cnn_embed)
 
-            self.classifier.zero_grad()
+            if self.average_per_class_embeddings:
+                g_encoded_images = tf.stack(g_encoded_images, axis=1)
+                b, k, h = g_encoded_images.get_shape().as_list()
+                g_encoded_images = tf.reshape(shape=(b, num_classes, spc, h))
+                g_encoded_images = tf.reduce_mean(g_encoded_images, axis=2)
+                self.support_set_labels = tf.reshape(self.support_set_labels, shape=(b, num_classes, spc,
+                                                                                     self.num_classes_per_set))
+                self.support_set_labels = tf.reduce_mean(self.support_set_labels, axis=2)
 
-            # preds = self.classifier.forward(x=x_support_set_task, params=names_weights_copy)
-            #
-            # before_loss = F.cross_entropy(input=preds, target=y_support_set_task)
-            # _, predicted = torch.max(preds.data, 1)
-            # before_accuracy = np.mean(list(predicted.eq(y_support_set_task.data).cpu()))
-            #
-            # self.classifier.zero_grad()
-            #
-            # grads = torch.autograd.grad(before_loss, list(names_weights_copy.values()))
-            # updated_weights = list(map(lambda p: p[1] - self.meta_learning_rate * p[0],
-            #                            zip(grads, list(names_weights_copy.values()))))
-            #
-            # names_weights_copy = dict(zip(names_weights_copy.keys(), updated_weights))
-            #
-            #
-            # preds = self.classifier.forward(x=x_support_set_task, params=names_weights_copy)
-            # after_loss = F.cross_entropy(input=preds, target=y_support_set_task)
-            # _, predicted = torch.max(preds.data, 1)
-            # after_accuracy = np.mean(list(predicted.eq(y_support_set_task.data).cpu()))
-            # diff.append(after_loss.data - before_loss.data)
-            # diff_acc.append(after_accuracy - before_accuracy)
-            #
-            # preds = self.classifier.forward(x=x_target_set_task, params=names_weights_copy)
-            # target_loss = F.cross_entropy(input=preds, target=y_target_set_task)
-            #
-            # _, predicted = torch.max(preds.data, 1)
-            # accuracy = list(predicted.eq(y_target_set_task.data).cpu())
-            # losses.append(target_loss)
-            # accuracies.append(accuracy)
+            target_image = self.target_image[0]  # produce embedding for target images
 
-            for num_step in range(self.number_of_steps_per_iter):
+            f_encoded_image = self.classifier(image_input=target_image, training=self.is_training,
+                                                   dropout_rate=self.dropout_rate)
 
-                # if num_step == 0:
-                #     if self.training:
-                #         restore_backup_running_stats = False
-                #     else:
-                #         restore_backup_running_stats = True
-                # else:
-                #     restore_backup_running_stats = False
-                #
-                # if num_step == (self.number_of_steps_per_iter - 1) and task_id == (num_tasks - 1) and self.training:
-                #     save_backup_running_stats = True
-                # else:
-                #     save_backup_running_stats = False
-                # save_backup_running_stats = False
-                # restore_backup_running_stats = False
+            if self.fce:  # Apply LSTM on embeddings if fce is enabled
+                g_encoded_images = self.g_lstm(g_encoded_images, training=self.is_training)
+                f_encoded_image = self.f_lstm(support_set_embeddings=tf.stack(g_encoded_images, axis=1),
+                                              K=self.full_context_K,
+                                              target_set_embeddings=f_encoded_image, training=self.is_training)
+            g_encoded_images = tf.stack(g_encoded_images, axis=0)
+            similarities = self.dn(support_set=g_encoded_images, input_image=f_encoded_image, name="distance_calculation",
+                                   training=self.is_training)  # get similarity between support set embeddings and target
 
-                if num_step > 0:
-                    restore_backup_running_stats = True
-                else:
-                    restore_backup_running_stats = False
+            preds = self.classify(similarities,
+                                  support_set_y=self.support_set_labels, name='classify', training=self.is_training)
+            # produce predictions for target probabilities
 
-                if num_step == 1 and self.training:
-                    save_backup_running_stats = True
-                else:
-                    save_backup_running_stats = False
+            correct_prediction = tf.equal(tf.argmax(preds, 1), tf.cast(self.target_label[0], tf.int64))
+            accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+            targets = tf.one_hot(self.target_label[0], self.num_classes_per_set)
 
-                support_preds = self.classifier.forward(x=x_support_set_task, params=names_weights_copy,
-                                                        training=True,
-                                                        save_backup_running_stats=save_backup_running_stats,
-                                                        restore_backup_running_stats=restore_backup_running_stats)
-                #preds = F.softmax(preds)
-                y_support_set_task = y_support_set_task.view(-1)
-                support_loss = F.cross_entropy(input=support_preds, target=y_support_set_task)
-                self.classifier.zero_grad(names_weights_copy)
-                grads = torch.autograd.grad(support_loss, list(names_weights_copy.values()))
-                updated_weights = list(map(lambda p: p[1] - self.task_learning_rate * p[0], zip(grads,
-                                                                                list(names_weights_copy.values()))))
-                names_weights_copy = dict(zip(names_weights_copy.keys(), updated_weights))
+            crossentropy_loss = self.crossentropy_softmax(targets=targets, outputs=preds)
 
-                #print(x_target_set_task.shape)
-            target_preds = self.classifier.forward(x=x_target_set_task, params=names_weights_copy,
-                                                   training=False)
-            #print(preds.shape)
-            target_loss = F.cross_entropy(input=target_preds, target=y_target_set_task)
+            tf.add_to_collection('crossentropy_losses', crossentropy_loss)
+            tf.add_to_collection('accuracy', accuracy)
 
-                #print(len(accuracy))
-            losses.append(target_loss)
-            _, predicted = torch.max(target_preds.data, 1)
-            accuracy = list(predicted.eq(y_target_set_task.data).cpu())
-            accuracies.extend(accuracy)
-
-        #print("length", len(losses))
-        loss = torch.sum(torch.stack(losses))
-        #print("accuracies len", len(accuracies), "end")
-        accuracies = np.mean(accuracies)
-        diff = np.mean(diff)
-        diff_acc = np.mean(diff_acc)
-        losses = dict()
-        losses['loss'] = loss
-        losses['accuracy'] = accuracies
-        # losses['diff'] = diff
-        # losses['diff_acc'] = diff_acc
-
-        return losses
-
-class MatchingNetworkHandler(object):
-    def __init__(self, im_shape, args):
-        self.use_cuda = torch.cuda.is_available()
-        self.matching_network = MatchingNetwork(im_shape, args=args, use_cuda=self.use_cuda)
-        self.criterion = nn.CrossEntropyLoss()
-        self.args = args
-        if self.use_cuda:
-            self.matching_network = self.matching_network.cuda()
-            # self.matching_network = torch.nn.DataParallel(self.matching_network,
-            #                                               device_ids=range(torch.cuda.device_count()))
-            cudnn.benchmark = True
-        self.training_mode = False
-        print("meta parameters")
-        for name, param in self.matching_network.named_parameters():
-            if param.requires_grad:
-                print(name, param.shape)
-        self.optimizer = optim.Adam(self.trainable_parameters(), lr=args.meta_learning_rate, amsgrad=True)
-        self.scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer=self.optimizer, T_max=self.args.total_epochs,
-                                                              eta_min=self.args.min_learning_rate)
-
-    def trainable_parameters(self):
-        for param in self.matching_network.parameters():
-            if param.requires_grad:
-                if self.use_cuda:
-                    yield param.cuda()
-                else:
-                    yield param
-
-
-    def compute_losses(self, preds, y_target_set):
-        losses = dict()
-        loss = self.criterion(preds, y_target_set)
-
-        _, predicted = torch.max(preds.data, 1)
-        losses['opt_loss'] = loss
-        losses['loss'] = loss.data.item()
-        losses['accuracy'] = np.mean(list(predicted.eq(y_target_set.data).cpu()))
-
-        return losses
-
-    def run_train_iter(self, data_batch, epoch):
-
-        """
-        Builds the train op
-        :param losses: A dictionary containing the losses
-        :param learning_rate: Learning rate to be used for Adam
-        :param beta1: Beta1 to be used for Adam
-        :return:
-        """
-        self.scheduler.step(epoch=epoch)
-
-        if not self.matching_network.training:
-            self.matching_network.train()
-
-        x_support_set, x_target_set, y_support_set, y_target_set = data_batch
-
-        x_support_set = torch.Tensor(x_support_set).float()
-        x_target_set = torch.Tensor(x_target_set).float()
-        y_support_set = torch.Tensor(y_support_set).long()
-        y_target_set = torch.Tensor(y_target_set).long()
-
-        if self.use_cuda:
-            x_support_set = x_support_set.cuda()
-            x_target_set = x_target_set.cuda()
-            y_support_set = y_support_set.cuda()
-            y_target_set = y_target_set.cuda()
-
-        data_batch = (x_support_set, x_target_set, y_support_set, y_target_set)
-
-        losses = self.matching_network.forward(data_batch=data_batch)
-
-        #print("matching_net_parameters", list(self.matching_network.parameters()))
-        self.optimizer.zero_grad()
-        losses['loss'].backward()  # Backward Propagation
-        losses['learning_rate'] = self.scheduler.get_lr()[0]
-
-        self.optimizer.step()  # Optimizer update
-        return losses
-
-    def run_validation_iter(self, data_batch):
-        """
-        Builds the train op
-        :param losses: A dictionary containing the losses
-        :param learning_rate: Learning rate to be used for Adam
-        :param beta1: Beta1 to be used for Adam
-        :return:
-        """
-        if self.matching_network.training:
-            self.matching_network.eval()
-
-        x_support_set, x_target_set, y_support_set, y_target_set = data_batch
-
-        x_support_set = torch.Tensor(x_support_set).float()
-        x_target_set = torch.Tensor(x_target_set).float()
-        y_support_set = torch.Tensor(y_support_set).long()
-        y_target_set = torch.Tensor(y_target_set).long()
-
-        if self.use_cuda:
-            x_support_set = x_support_set.cuda()
-            x_target_set = x_target_set.cuda()
-            y_support_set = y_support_set.cuda()
-            y_target_set = y_target_set.cuda()
-
-        data_batch = (x_support_set, x_target_set, y_support_set, y_target_set)
-
-        losses = self.matching_network.forward(data_batch=data_batch)
-
-        #print("matching_net_parameters", list(self.matching_network.parameters()))
-        self.optimizer.zero_grad()
-        # losses['loss'].backward()  # Backward Propagation
-        # #losses['learning_rate'] = self.scheduler.get_lr()[0]
-        #
-        # self.optimizer.step()  # Optimizer update
-        return losses
-
-    def save_model(self, model_save_dir, loss, accuracy, iter):
-        state = {
-            'network': self.matching_network if self.use_cuda else self.matching_network,
-            'loss': loss,
-            'accuracy': accuracy,
-            'iter': iter
+        return {
+            self.classify: tf.add_n(tf.get_collection('crossentropy_losses'), name='total_classification_loss'),
+            self.dn: tf.add_n(tf.get_collection('accuracy'), name='accuracy')
         }
-        torch.save(state, f=model_save_dir)
 
-    def load_model(self, model_save_dir, model_name, model_idx):
-        filepath = os.path.join(model_save_dir, "{}_{}".format(model_name, model_idx))
-        checkpoint = torch.load(filepath)
-        self.matching_network = checkpoint['network']
-        loss = checkpoint['loss']
-        accuracy = checkpoint['accuracy']
-        start_iter = checkpoint['iter']
+    def train(self, losses):
 
-        if self.use_cuda:
-            self.matching_network.cuda()
-            self.matching_network = torch.nn.DataParallel(self.matching_network,
-                                                          device_ids=range(torch.cuda.device_count()))
+        """
+        Builds the train op
+        :param losses: A dictionary containing the losses
+        :param learning_rate: Learning rate to be used for Adam
+        :param beta1: Beta1 to be used for Adam
+        :return:
+        """
+        c_opt = tf.train.AdamOptimizer(beta1=0.9, learning_rate=self.learning_rate)
+        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)  # Needed for correct batch norm usage
+        with tf.control_dependencies(update_ops):  # Needed for correct batch norm usage
+            if self.fce:
+                train_variables = self.f_lstm.variables + self.g_lstm.variables + self.classifier.variables
+            else:
+                train_variables = self.classifier.variables
+            c_error_opt_op = c_opt.minimize(losses[self.classify],
+                                            var_list=train_variables, colocate_gradients_with_ops=True)
 
-        return start_iter, accuracy, loss
+        return c_error_opt_op
+
+    def crossentropy_softmax(self, outputs, targets):
+        normOutputs = outputs - tf.reduce_max(outputs, axis=-1)[:, None]
+        logProb = normOutputs - tf.log(tf.reduce_sum(tf.exp(normOutputs), axis=-1)[:, None])
+        return -tf.reduce_mean(tf.reduce_sum(targets * logProb, axis=1))
+
+    def init_train(self):
+        """
+        Get all ops, as well as all losses.
+        :return:
+        """
+        losses = self.loss()
+        c_error_opt_op = self.train(losses)
+        summary = tf.summary.merge_all()
+        return summary, losses, c_error_opt_op
